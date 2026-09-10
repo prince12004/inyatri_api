@@ -8,15 +8,15 @@ import { sequelize } from "./config/dbConfig.js";
 import app from "./app.js";
 import logger from "./utils/logger.js";
 
-import User from './models/User.js';
-import Car from './models/Car.js';
-import City from './models/City.js';
-import CarAdditionalImage from './models/CarAdditionalImage.js';
-import CarFeatureMap from './models/CarFeatureMap.js';
-import Coupon from './models/Coupon.js';
-import CouponUsage from './models/CouponUsage.js';
-import Booking from './models/Booking.js';
-import BookingPayment from './models/BookingPayment.js';
+// import User from './models/User.js';
+// import Car from './models/Car.js';
+// import City from './models/City.js';
+// import CarAdditionalImage from './models/CarAdditionalImage.js';
+// import CarFeatureMap from './models/CarFeatureMap.js';
+// import Coupon from './models/Coupon.js';
+// import CouponUsage from './models/CouponUsage.js';
+// import Booking from './models/Booking.js';
+// import BookingPayment from './models/BookingPayment.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
