@@ -3,13 +3,27 @@ const formatFieldName = (field) =>
     .replace(/_/g, ' ')
     .replace(/\b\w/g, char => char.toUpperCase());
 
+// Express 5 exposes req.query/params/body as getter-only; merge in place instead of reassignment.
+const mergeValidated = (target, value) => {
+  if (!target || typeof target !== 'object') return;
+
+  for (const key of Object.keys(target)) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) {
+      delete target[key];
+    }
+  }
+
+  Object.assign(target, value);
+};
+
 const validate = (schemas) => (req, res, next) => {
   const locations = ['body', 'query', 'params'];
 
   for (const loc of locations) {
     if (schemas[loc]) {
-      const { error } = schemas[loc].validate(req[loc], {
+      const { error, value } = schemas[loc].validate(req[loc], {
         abortEarly: false,
+        convert: true,
         errors: {
           wrap: { label: '' }
         }
@@ -44,6 +58,8 @@ const validate = (schemas) => (req, res, next) => {
           data: {}
         });
       }
+
+      mergeValidated(req[loc], value);
     }
   }
   next();

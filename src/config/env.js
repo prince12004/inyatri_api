@@ -40,6 +40,10 @@ const optionalEnvVars = {
     OTP_RATE_LIMIT_MAX_REQUESTS: process.env.OTP_RATE_LIMIT_MAX_REQUESTS || '5',
 
     // AWS S3 Optional
+    ACCESS_KEY_ID: process.env.ACCESS_KEY_ID,
+    SECRET_ACCESS_KEY: process.env.SECRET_ACCESS_KEY,
+    REGION: process.env.REGION,
+    BUCKET_NAME: process.env.BUCKET_NAME,
     ACL: process.env.ACL || 'public-read',
     S3_ENDPOINT: process.env.S3_ENDPOINT,
 
@@ -87,6 +91,18 @@ const optionalEnvVars = {
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
     TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
+
+    // Cloudinary Configuration
+    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+
+    // PayU Configuration
+    PAYU_MERCHANT_KEY: process.env.PAYU_MERCHANT_KEY,
+    PAYU_MERCHANT_SALT: process.env.PAYU_MERCHANT_SALT,
+    PAYU_ENV: process.env.PAYU_ENV || "test",
+    PAYU_SUCCESS_URL: process.env.PAYU_SUCCESS_URL,
+    PAYU_FAILURE_URL: process.env.PAYU_FAILURE_URL,
 };
 
 /**
@@ -150,10 +166,10 @@ const ENV = {
     },
 
     AWS: {
-        ACCESS_KEY_ID: requiredEnvVars.ACCESS_KEY_ID,
-        SECRET_ACCESS_KEY: requiredEnvVars.SECRET_ACCESS_KEY,
-        REGION: requiredEnvVars.REGION,
-        BUCKET_NAME: requiredEnvVars.BUCKET_NAME,
+        ACCESS_KEY_ID: optionalEnvVars.ACCESS_KEY_ID || process.env.ACCESS_KEY_ID,
+        SECRET_ACCESS_KEY: optionalEnvVars.SECRET_ACCESS_KEY || process.env.SECRET_ACCESS_KEY,
+        REGION: optionalEnvVars.REGION || process.env.REGION,
+        BUCKET_NAME: optionalEnvVars.BUCKET_NAME || process.env.BUCKET_NAME,
         ACL: optionalEnvVars.ACL,
         S3_ENDPOINT: optionalEnvVars.S3_ENDPOINT,
     },
@@ -208,6 +224,20 @@ const ENV = {
         ACCOUNT_SID: optionalEnvVars.TWILIO_ACCOUNT_SID,
         AUTH_TOKEN: optionalEnvVars.TWILIO_AUTH_TOKEN,
         PHONE_NUMBER: optionalEnvVars.TWILIO_PHONE_NUMBER,
+    },
+
+    CLOUDINARY: {
+        CLOUD_NAME: optionalEnvVars.CLOUDINARY_CLOUD_NAME,
+        API_KEY: optionalEnvVars.CLOUDINARY_API_KEY,
+        API_SECRET: optionalEnvVars.CLOUDINARY_API_SECRET,
+    },
+
+    PAYU: {
+        MERCHANT_KEY: optionalEnvVars.PAYU_MERCHANT_KEY,
+        MERCHANT_SALT: optionalEnvVars.PAYU_MERCHANT_SALT,
+        ENV: optionalEnvVars.PAYU_ENV,
+        SUCCESS_URL: optionalEnvVars.PAYU_SUCCESS_URL,
+        FAILURE_URL: optionalEnvVars.PAYU_FAILURE_URL,
     },
 
     // Optional variables with defaults

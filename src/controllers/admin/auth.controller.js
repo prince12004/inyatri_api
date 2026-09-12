@@ -1,9 +1,4 @@
-import { Admin, sequelize } from "../../models/index.js";
-import {
-  formatAdminResponse,
-  signAdminToken,
-  verifyAdminPassword,
-} from "../../utils/auth.util.js";
+import * as authService from "../../services/admin/auth.service.js";
 import {
   successResponse,
   unauthorizedResponse,
@@ -11,48 +6,29 @@ import {
   errorResponse,
 } from "../../utils/response.js";
 import logger from "../../utils/logger.js";
+import ApiError from "../../utils/ApiError.js";
 
 const adminLoginHandler = async (req, res) => {
   try {
-    const email = String(req.body.email).trim().toLowerCase();
-    const password = req.body.password;
-
-    const admin = await Admin.findOne({
-      where: sequelize.where(
-        sequelize.fn("LOWER", sequelize.col("email")),
-        email
-      ),
+    const result = await authService.loginAdmin({
+      email: req.body.email,
+      password: req.body.password,
     });
 
-    if (!admin) {
-      return unauthorizedResponse("Invalid email or password", res);
-    }
-
-    if (admin.status !== 1) {
-      return badRequestError(
-        "Account is inactive. Please contact the super admin.",
-        res
-      );
-    }
-
-    const passwordValid = await verifyAdminPassword(password, admin.password);
-
-    if (!passwordValid) {
-      return unauthorizedResponse("Invalid email or password", res);
-    }
-
-    const token = signAdminToken(admin);
-
-    return successResponse(
-      {
-        token,
-        admin: formatAdminResponse(admin),
-      },
-      "Admin logged in successfully",
-      res
-    );
+    return successResponse(result, "Admin logged in successfully", res);
   } catch (error) {
     logger.error("adminLogin error:", error);
+
+    if (error instanceof ApiError) {
+      if (error.statusCode === 401) {
+        return unauthorizedResponse(error.message, res);
+      }
+      if (error.statusCode === 400) {
+        return badRequestError(error.message, res);
+      }
+      return errorResponse(error, res);
+    }
+
     return errorResponse(error, res);
   }
 };

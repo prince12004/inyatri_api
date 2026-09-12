@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import ENV from '../config/env.js';
 import { User } from "../models/index.js";
 import { unauthorizedResponse } from '../utils/response.js';
+import { isDevPaymentToolsEnabled } from '../utils/payment/payu.util.js';
 
 /************************* Authentication (USER) **************************/
 const auth = {
@@ -82,4 +83,18 @@ const auth = {
   }
 };
 
+/** Dev-only: allow Bearer token via ?token= for browser PayU redirect testing */
+const requiredDevWithQueryToken = async (req, res, next) => {
+  if (!isDevPaymentToolsEnabled()) {
+    return unauthorizedResponse("Not found", res);
+  }
+
+  if (!req.headers.authorization && req.query.token) {
+    req.headers.authorization = `Bearer ${req.query.token}`;
+  }
+
+  return auth.required(req, res, next);
+};
+
+export { requiredDevWithQueryToken };
 export default auth;

@@ -19,25 +19,41 @@ import mainRouter from './routes/index.js';
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware (skip for dev PayU redirect — needs relaxed CSP for form POST to PayU)
+const helmetMiddleware = helmet();
+const payuPath = (req) => req.originalUrl.split("?")[0];
 
-// CORS configuration
+const isPayuRedirectPage = (req) =>
+  req.method === "GET" && /\/payments\/payu\/redirect\/\d+/.test(payuPath(req));
 
+/** PayU browser POSTbacks include Origin: https://test.payu.in — not a frontend API call */
+const isPayuCallbackRequest = (req) =>
+  req.method === "POST" &&
+  /\/payments\/payu\/(success|failure)$/.test(payuPath(req));
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      return cb(new Error("Not allowed by CORS"));
-    },
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    // allowedHeaders: "*", // 👈 allows all request headers
-    credentials: true,
-    maxAge: 600,
-  })
-);
-// app.use(cors())
+app.use((req, res, next) => {
+  if (isPayuRedirectPage(req)) {
+    return next();
+  }
+  return helmetMiddleware(req, res, next);
+});
+
+const corsMiddleware = cors({
+  origin: (origin, cb) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error("Not allowed by CORS"));
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  credentials: true,
+  maxAge: 600,
+});
+
+app.use((req, res, next) => {
+  if (isPayuCallbackRequest(req)) {
+    return next();
+  }
+  return corsMiddleware(req, res, next);
+});
 
 // Rate limiting
 const limiter = rateLimit({
