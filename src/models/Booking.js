@@ -97,6 +97,50 @@ const Booking = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    rental_type: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "rental",
+    },
+    subscription_plan: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    plan_discount_percent: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    plan_discount_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    payment_option: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "full",
+    },
+    part_payment_percent: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    total_booking_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    paid_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+    remaining_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
     booking_status: {
       type: DataTypes.TINYINT,
       allowNull: false,

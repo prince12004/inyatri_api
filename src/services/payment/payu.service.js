@@ -70,11 +70,15 @@ export const handlePayuCallback = async (payload) => {
     };
   }
 
+  const latestAttempt = await bookingRepository.findLatestPaymentAttempt(
+    booking.id
+  );
+
   const responseAmount = Number(payload.amount);
-  const bookingAmount = Number(booking.payable_amount);
+  const expectedAmount = Number(latestAttempt?.amount ?? booking.payable_amount);
   if (
     Number.isFinite(responseAmount) &&
-    Math.abs(responseAmount - bookingAmount) > 0.01
+    Math.abs(responseAmount - expectedAmount) > 0.01
   ) {
     throw new ApiError(400, "Payment amount mismatch");
   }
@@ -82,10 +86,6 @@ export const handlePayuCallback = async (payload) => {
   const outcome = resolvePaymentOutcome(payload);
 
   return bookingRepository.withTransaction(async (transaction) => {
-    const latestAttempt = await bookingRepository.findLatestPaymentAttempt(
-      booking.id
-    );
-
     if (latestAttempt) {
       await bookingRepository.updatePaymentAttempt(
         latestAttempt.id,
@@ -97,9 +97,24 @@ export const handlePayuCallback = async (payload) => {
       );
     }
 
+    const isSuccess = outcome.paymentStatus === PAYMENT_STATUS.SUCCESS;
+    const paidAmount = isSuccess
+      ? Number(booking.paid_amount || 0) + responseAmount
+      : Number(booking.paid_amount || 0);
+
+    const isPartiallyPaid =
+      isSuccess &&
+      booking.payment_option === "part" &&
+      Number(booking.remaining_amount) > 0;
+
+    const resolvedPaymentStatus = isPartiallyPaid
+      ? PAYMENT_STATUS.PARTIALLY_PAID
+      : outcome.paymentStatus;
+
     const bookingUpdates = {
       booking_status: outcome.bookingStatus,
-      payment_status: outcome.paymentStatus,
+      payment_status: resolvedPaymentStatus,
+      paid_amount: paidAmount,
       payu_txn_id: payload.txnid || booking.payu_txn_id,
       payu_mihpayid: payload.mihpayid || null,
       payu_payment_id: payload.payuMoneyId || payload.bank_ref_num || null,
@@ -138,11 +153,13 @@ export const handlePayuCallback = async (payload) => {
             ? "payment_cancelled"
             : "payment_failed",
       payment_status:
-        outcome.paymentStatus === PAYMENT_STATUS.SUCCESS
-          ? "success"
-          : outcome.paymentStatus === PAYMENT_STATUS.CANCELLED
-            ? "cancelled"
-            : "failed",
+        resolvedPaymentStatus === PAYMENT_STATUS.PARTIALLY_PAID
+          ? "partially_paid"
+          : outcome.paymentStatus === PAYMENT_STATUS.SUCCESS
+            ? "success"
+            : outcome.paymentStatus === PAYMENT_STATUS.CANCELLED
+              ? "cancelled"
+              : "failed",
       txnid: payload.txnid,
       amount: payload.amount,
     };

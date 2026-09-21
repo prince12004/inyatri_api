@@ -28,6 +28,13 @@ const formatBookingStatus = (booking) => ({
 const formatBooking = (booking) => ({
   id: booking.id,
   booking_ref: booking.booking_ref,
+  rental_type: booking.rental_type || "rental",
+  subscription_plan: booking.subscription_plan || null,
+  payment_option: booking.payment_option || "full",
+  part_payment_percent: Number(booking.part_payment_percent || 0),
+  total_booking_amount: Number(booking.total_booking_amount || booking.payable_amount),
+  paid_amount: Number(booking.paid_amount || 0),
+  remaining_amount: Number(booking.remaining_amount || 0),
   ...formatBookingStatus(booking),
   pickup_at: booking.pickup_at,
   drop_at: booking.drop_at,
@@ -38,6 +45,11 @@ const formatBooking = (booking) => ({
   home_delivery_selected: Boolean(booking.home_delivery_selected),
   fare_breakdown: {
     base_rental_amount: Number(booking.base_rental_amount),
+    plan_discount_percent: Number(booking.plan_discount_percent || 0),
+    plan_discount_amount: Number(booking.plan_discount_amount || 0),
+    trip_fare:
+      Number(booking.base_rental_amount) -
+      Number(booking.plan_discount_amount || 0),
     insurance_amount: Number(booking.insurance_amount),
     delivery_amount: Number(booking.delivery_amount),
     gst_amount: Number(booking.gst_amount),
@@ -91,6 +103,8 @@ const formatBooking = (booking) => ({
 
 const resolveBookingContext = async (payload, userId) => {
   const rentalDays = calculateRentalDays(payload.pickup_at, payload.drop_at);
+  const rentalType = (payload.rental_type || payload.type || "rental").toLowerCase();
+  const planType = payload.plan_type || null;
 
   const city = await cityRepository.findActiveCityById(payload.city_id);
   if (!city) {
@@ -105,6 +119,13 @@ const resolveBookingContext = async (payload, userId) => {
     throw new ApiError(404, "Car not found or unavailable in selected city");
   }
 
+  if (rentalType === "monthly" && !car.enable_monthly_subscription) {
+    throw new ApiError(
+      400,
+      "This car is not available for monthly subscription"
+    );
+  }
+
   if (payload.home_delivery_selected && !car.home_delivery_available) {
     throw new ApiError(400, "Home delivery is not available for this car");
   }
@@ -116,6 +137,8 @@ const resolveBookingContext = async (payload, userId) => {
     const previewFare = buildBookingFareBreakdown({
       car,
       rentalDays,
+      rentalType,
+      planType,
       insuranceSelected: payload.insurance_selected,
       homeDeliverySelected: payload.home_delivery_selected,
     });
@@ -123,7 +146,7 @@ const resolveBookingContext = async (payload, userId) => {
     const couponResult = await couponService.validateCouponForUser({
       code: payload.coupon_code,
       userId,
-      baseRentalAmount: previewFare.base_rental_amount,
+      baseRentalAmount: previewFare.trip_fare || previewFare.base_rental_amount,
     });
 
     coupon = couponResult.coupon;
@@ -133,6 +156,8 @@ const resolveBookingContext = async (payload, userId) => {
   const fareBreakdown = buildBookingFareBreakdown({
     car,
     rentalDays,
+    rentalType,
+    planType,
     insuranceSelected: payload.insurance_selected,
     homeDeliverySelected: payload.home_delivery_selected,
     coupon,
@@ -142,6 +167,8 @@ const resolveBookingContext = async (payload, userId) => {
     car,
     city,
     rentalDays,
+    rentalType,
+    planType,
     fareBreakdown,
     coupon,
     couponMessage,
@@ -152,6 +179,8 @@ export const getBookingSummary = async (payload, userId) => {
   const context = await resolveBookingContext(payload, userId);
 
   return {
+    rental_type: context.fareBreakdown.rental_type,
+    subscription_plan: context.fareBreakdown.plan_type,
     car: {
       id: context.car.id,
       car_name: context.car.car_name,
@@ -161,6 +190,9 @@ export const getBookingSummary = async (payload, userId) => {
       seats: context.car.seats,
       fuel_type: context.car.fuel_type,
       main_image: context.car.main_image,
+      enable_monthly_subscription: Boolean(
+        context.car.enable_monthly_subscription
+      ),
     },
     city: {
       id: context.city.id,
@@ -172,6 +204,7 @@ export const getBookingSummary = async (payload, userId) => {
     pickup_location: payload.pickup_location,
     drop_location: payload.drop_location,
     fare_breakdown: context.fareBreakdown,
+    payment_options: context.fareBreakdown.payment_options,
     coupon: context.fareBreakdown.coupon
       ? {
           ...context.fareBreakdown.coupon,
@@ -194,12 +227,15 @@ export const validateCoupon = async (payload, userId) => {
   const couponResult = await couponService.validateCouponForUser({
     code: payload.code,
     userId,
-    baseRentalAmount: context.fareBreakdown.base_rental_amount,
+    baseRentalAmount:
+      context.fareBreakdown.trip_fare || context.fareBreakdown.base_rental_amount,
   });
 
   const fareBreakdown = buildBookingFareBreakdown({
     car: context.car,
     rentalDays: context.rentalDays,
+    rentalType: context.rentalType,
+    planType: context.planType,
     insuranceSelected: payload.insurance_selected,
     homeDeliverySelected: payload.home_delivery_selected,
     coupon: couponResult.coupon,
@@ -226,11 +262,13 @@ export const listAvailableCoupons = async (payload, userId) => {
 
   const coupons = await couponService.listAvailableCoupons({
     userId,
-    baseRentalAmount: context.fareBreakdown.base_rental_amount,
+    baseRentalAmount:
+      context.fareBreakdown.trip_fare || context.fareBreakdown.base_rental_amount,
   });
 
   return {
-    base_rental_amount: context.fareBreakdown.base_rental_amount,
+    base_rental_amount:
+      context.fareBreakdown.trip_fare || context.fareBreakdown.base_rental_amount,
     coupons,
   };
 };
@@ -247,6 +285,20 @@ export const checkoutBooking = async (payload, user) => {
     throw new ApiError(409, "Car is already booked for the selected dates");
   }
 
+  const paymentOption = (payload.payment_option || "full").toLowerCase();
+  const isPartPayment = paymentOption === "part";
+
+  const totalBookingAmount = context.fareBreakdown.total_amount;
+  const payableNow = isPartPayment
+    ? context.fareBreakdown.payment_options.part_payment.amount
+    : context.fareBreakdown.payment_options.full_payment.amount;
+  const remainingAmount = isPartPayment
+    ? context.fareBreakdown.payment_options.part_payment.remaining_amount
+    : 0;
+  const partPaymentPercent = isPartPayment
+    ? context.fareBreakdown.payment_options.part_payment.percentage
+    : 0;
+
   return bookingRepository.withTransaction(async (transaction) => {
     const booking = await bookingRepository.createBooking(
       {
@@ -255,6 +307,13 @@ export const checkoutBooking = async (payload, user) => {
         car_id: payload.car_id,
         city_id: payload.city_id,
         coupon_id: context.coupon?.id ?? null,
+        rental_type: context.fareBreakdown.rental_type,
+        subscription_plan: context.fareBreakdown.plan_type,
+        plan_discount_percent: context.fareBreakdown.plan_discount_percent,
+        plan_discount_amount: context.fareBreakdown.plan_discount_amount,
+        payment_option: isPartPayment ? "part" : "full",
+        part_payment_percent: partPaymentPercent,
+        total_booking_amount: totalBookingAmount,
         pickup_at: payload.pickup_at,
         drop_at: payload.drop_at,
         rental_days: context.rentalDays,
@@ -267,8 +326,10 @@ export const checkoutBooking = async (payload, user) => {
         delivery_amount: context.fareBreakdown.delivery_amount,
         gst_amount: context.fareBreakdown.gst_amount,
         discount_amount: context.fareBreakdown.discount_amount,
-        payable_amount: context.fareBreakdown.payable_amount,
+        payable_amount: payableNow,
         security_deposit_amount: context.fareBreakdown.security_deposit_amount,
+        paid_amount: 0,
+        remaining_amount: remainingAmount,
         booking_status: BOOKING_STATUS.PENDING_PAYMENT,
         payment_status: PAYMENT_STATUS.NOT_INITIATED,
       },

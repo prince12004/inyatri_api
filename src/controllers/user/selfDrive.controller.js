@@ -56,6 +56,7 @@ export const listCars = async (req, res) => {
 
     return successResponse(
       {
+        rental_type: result.rental_type,
         mode: result.mode,
         city: result.city,
         pickup_at: result.pickup_at,
@@ -85,6 +86,7 @@ export const getCarById = async (req, res) => {
 
     return successResponse(
       {
+        rental_type: car.fare_preview.rental_type,
         mode: car.fare_preview.is_estimated ? "browse" : "find",
         city: car.city,
         pickup_at: req.query.pickup_at ?? null,
