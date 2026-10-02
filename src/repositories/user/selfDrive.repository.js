@@ -39,7 +39,13 @@ const detailIncludes = [
   },
 ];
 
-const buildCarWhere = ({ cityId, carTypeId, transmission, fuelType }) => {
+const buildCarWhere = ({
+  cityId,
+  carTypeId,
+  transmission,
+  fuelType,
+  isMonthly = false,
+}) => {
   const where = {
     status: STATUS.ACTIVE,
     [Op.or]: [
@@ -52,6 +58,7 @@ const buildCarWhere = ({ cityId, carTypeId, transmission, fuelType }) => {
   if (carTypeId) where.car_type_id = carTypeId;
   if (transmission) where.transmission = transmission;
   if (fuelType) where.fuel_type = fuelType;
+  if (isMonthly) where.enable_monthly_subscription = 1;
 
   return where;
 };
@@ -59,7 +66,13 @@ const buildCarWhere = ({ cityId, carTypeId, transmission, fuelType }) => {
 const cityFilterSql = (cityId) =>
   cityId ? "AND c.city_id = :cityId" : "";
 
-export const findCategoriesWithStartingPrice = async (cityId = null) => {
+const monthlyFilterSql = (isMonthly) =>
+  isMonthly ? "AND c.enable_monthly_subscription = 1" : "";
+
+export const findCategoriesWithStartingPrice = async (
+  cityId = null,
+  isMonthly = false
+) => {
   const rows = await sequelize.query(
     `
     SELECT
@@ -77,6 +90,7 @@ export const findCategoriesWithStartingPrice = async (cityId = null) => {
       ON c.car_type_id = ct.id
       AND c.status = :activeStatus
       ${cityFilterSql(cityId)}
+      ${monthlyFilterSql(isMonthly)}
     WHERE ct.status = :activeStatus
       AND ${pricedCarSqlCondition}
     GROUP BY ct.id, ct.type_name
@@ -112,6 +126,7 @@ export const findCategoriesWithStartingPrice = async (cityId = null) => {
       WHERE c.status = :activeStatus
         AND c.car_type_id IN (:typeIds)
         ${cityFilterSql(cityId)}
+        ${monthlyFilterSql(isMonthly)}
         AND ${pricedCarSqlCondition}
     ) ranked
     WHERE row_num = 1
@@ -146,6 +161,7 @@ export const findCategoriesWithStartingPrice = async (cityId = null) => {
       WHERE status = :activeStatus
         AND car_type_id IN (:typeIds)
         ${cityId ? "AND city_id = :cityId" : ""}
+        ${isMonthly ? "AND enable_monthly_subscription = 1" : ""}
         AND model IS NOT NULL
         AND TRIM(model) <> ''
     ) ranked
@@ -189,11 +205,18 @@ export const findAvailableCars = async ({
   carTypeId,
   transmission,
   fuelType,
+  isMonthly = false,
   page,
   limit,
 }) => {
   const pagination = buildPagination(page, limit);
-  const where = buildCarWhere({ cityId, carTypeId, transmission, fuelType });
+  const where = buildCarWhere({
+    cityId,
+    carTypeId,
+    transmission,
+    fuelType,
+    isMonthly,
+  });
 
   const { rows, count } = await Car.findAndCountAll({
     where,
@@ -210,7 +233,11 @@ export const findAvailableCars = async ({
   return { rows, count, pagination };
 };
 
-export const findAvailableCarById = async (id, cityId = null) => {
+export const findAvailableCarById = async (
+  id,
+  cityId = null,
+  isMonthly = false
+) => {
   const where = {
     id,
     status: STATUS.ACTIVE,
@@ -224,13 +251,17 @@ export const findAvailableCarById = async (id, cityId = null) => {
     where.city_id = cityId;
   }
 
+  if (isMonthly) {
+    where.enable_monthly_subscription = 1;
+  }
+
   return Car.findOne({
     where,
     include: detailIncludes,
   });
 };
 
-export const countPricedCars = async (cityId = null) => {
+export const countPricedCars = async (cityId = null, isMonthly = false) => {
   const where = {
     status: STATUS.ACTIVE,
     [Op.or]: [
@@ -243,10 +274,18 @@ export const countPricedCars = async (cityId = null) => {
     where.city_id = cityId;
   }
 
+  if (isMonthly) {
+    where.enable_monthly_subscription = 1;
+  }
+
   return Car.count({ where });
 };
 
-export const categoryHasCars = async (carTypeId, cityId = null) => {
-  const where = buildCarWhere({ cityId, carTypeId });
+export const categoryHasCars = async (
+  carTypeId,
+  cityId = null,
+  isMonthly = false
+) => {
+  const where = buildCarWhere({ cityId, carTypeId, isMonthly });
   return Car.count({ where });
 };

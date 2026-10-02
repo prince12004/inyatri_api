@@ -22,6 +22,7 @@ export const PAYMENT_STATUS = {
   SUCCESS: 3,
   FAILED: 4,
   CANCELLED: 5,
+  PARTIALLY_PAID: 6,
 };
 
 export const PAYMENT_STATUS_LABELS = {
@@ -30,6 +31,7 @@ export const PAYMENT_STATUS_LABELS = {
   3: "success",
   4: "failed",
   5: "cancelled",
+  6: "partially_paid",
 };
 
 export const PAYMENT_ATTEMPT_STATUS = {
@@ -37,4 +39,21 @@ export const PAYMENT_ATTEMPT_STATUS = {
   SUCCESS: 3,
   FAILED: 4,
   CANCELLED: 5,
+};
+
+export const RENTAL_TYPES = {
+  RENTAL: "rental",
+  MONTHLY: "monthly",
+};
+
+export const PAYMENT_OPTIONS = {
+  FULL: "full",
+  PART: "part",
+};
+
+export const SUBSCRIPTION_PLANS = {
+  PLAN_15_DAYS: "15_days",
+  PLAN_1_MONTH: "1_month",
+  PLAN_3_MONTHS: "3_months",
+  PLAN_6_MONTHS: "6_months",
 };

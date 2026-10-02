@@ -56,10 +56,44 @@ export const getEffectivePricePerDay = (car) => {
   return null;
 };
 
+export const DEFAULT_MONTHLY_RENTAL_DAYS = 30;
+
+export const normalizeRentalType = (input = {}) => {
+  const rawType = (input.rental_type || input.type || "rental").toLowerCase();
+  return rawType === "monthly" ? "monthly" : "rental";
+};
+
 export const resolveRentalMode = (input = {}) => {
+  const rentalType = normalizeRentalType(input);
   const hasPickup = input.pickup_at !== undefined && input.pickup_at !== null && input.pickup_at !== "";
   const hasDrop = input.drop_at !== undefined && input.drop_at !== null && input.drop_at !== "";
   const hasCity = input.city_id !== undefined && input.city_id !== null && input.city_id !== "";
+
+  if (rentalType === "monthly") {
+    const cityId = hasCity ? Number(input.city_id) : null;
+    if (hasPickup && hasDrop) {
+      const rentalDays = calculateRentalDays(input.pickup_at, input.drop_at);
+      return {
+        mode: "find",
+        rental_type: "monthly",
+        city_id: cityId,
+        pickup_at: input.pickup_at,
+        drop_at: input.drop_at,
+        rental_days: rentalDays,
+        is_estimated: false,
+      };
+    }
+
+    return {
+      mode: hasCity ? "find" : "browse",
+      rental_type: "monthly",
+      city_id: cityId,
+      pickup_at: null,
+      drop_at: null,
+      rental_days: DEFAULT_MONTHLY_RENTAL_DAYS,
+      is_estimated: true,
+    };
+  }
 
   if (hasPickup || hasDrop) {
     if (!hasPickup || !hasDrop || !hasCity) {
@@ -71,6 +105,7 @@ export const resolveRentalMode = (input = {}) => {
 
     return {
       mode: "find",
+      rental_type: "rental",
       city_id: Number(input.city_id),
       pickup_at: input.pickup_at,
       drop_at: input.drop_at,
@@ -81,6 +116,7 @@ export const resolveRentalMode = (input = {}) => {
 
   return {
     mode: "browse",
+    rental_type: "rental",
     city_id: hasCity ? Number(input.city_id) : null,
     pickup_at: null,
     drop_at: null,
@@ -90,14 +126,20 @@ export const resolveRentalMode = (input = {}) => {
 };
 
 export const resolveBrowseMode = (input = {}) => {
+  const rentalType = normalizeRentalType(input);
   const hasCity = input.city_id !== undefined && input.city_id !== null && input.city_id !== "";
 
   return {
     mode: "browse",
+    rental_type: rentalType,
     city_id: hasCity ? Number(input.city_id) : null,
     pickup_at: null,
     drop_at: null,
-    rental_days: DEFAULT_BROWSE_RENTAL_DAYS,
+    rental_days:
+      rentalType === "monthly"
+        ? DEFAULT_MONTHLY_RENTAL_DAYS
+        : DEFAULT_BROWSE_RENTAL_DAYS,
     is_estimated: true,
   };
 };
+
