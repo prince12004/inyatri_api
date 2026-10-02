@@ -230,6 +230,7 @@ export const listCategories = async (query) => {
     isMonthly
   );
 
+  
   return {
     rental_type: browse.rental_type,
     mode: browse.mode,
