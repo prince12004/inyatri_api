@@ -1,31 +1,60 @@
 import * as payuService from "../../services/payment/payu.service.js";
-import { setPayuCheckoutPageHeaders } from "../../utils/payment/payu.util.js";
+import {
+  extractPayuCallbackPayload,
+  setPayuCheckoutPageHeaders,
+} from "../../utils/payment/payu.util.js";
 import { errorResponse } from "../../utils/response.js";
 import logger from "../../utils/logger.js";
 
-export const payuSuccessCallback = async (req, res) => {
+const handlePayuBrowserCallback = async (req, res, isSuccessRoute) => {
+  const payload = extractPayuCallbackPayload(req);
+  logger.info("PayU callback received", {
+    route: isSuccessRoute ? "success" : "failure",
+    txnid: payload.txnid,
+    status: payload.status,
+    amount: payload.amount,
+  });
+
   try {
-    const result = await payuService.handlePayuCallback(req.body);
-    res
+    const result = await payuService.handlePayuCallback(payload);
+    return res
       .status(200)
-      .send(payuService.buildPayuRedirectHtml(result, true));
+      .send(payuService.buildPayuRedirectHtml(result, isSuccessRoute));
   } catch (error) {
-    logger.error("payuSuccessCallback error:", error);
+    logger.error("PayU callback error:", {
+      message: error.message,
+      txnid: payload.txnid,
+    });
+
+    if (payload.txnid) {
+      try {
+        const verified = await payuService.reconcilePaymentByTxnid(payload.txnid);
+        if (verified.reconciled && verified.result && !verified.pending) {
+          return res
+            .status(200)
+            .send(payuService.buildPayuRedirectHtml(verified.result, isSuccessRoute));
+        }
+      } catch (reconcileError) {
+        logger.error("PayU callback reconcile fallback failed:", reconcileError);
+      }
+    }
+
+    // PayU/browser expects HTML; JSON often breaks their return handler.
+    if (error.statusCode === 400 || error.statusCode === 404) {
+      return res
+        .status(200)
+        .send(payuService.buildPayuCallbackErrorHtml(error.message));
+    }
+
     return errorResponse(error, res);
   }
 };
 
-export const payuFailureCallback = async (req, res) => {
-  try {
-    const result = await payuService.handlePayuCallback(req.body);
-    res
-      .status(200)
-      .send(payuService.buildPayuRedirectHtml(result, false));
-  } catch (error) {
-    logger.error("payuFailureCallback error:", error);
-    return errorResponse(error, res);
-  }
-};
+export const payuSuccessCallback = async (req, res) =>
+  handlePayuBrowserCallback(req, res, true);
+
+export const payuFailureCallback = async (req, res) =>
+  handlePayuBrowserCallback(req, res, false);
 
 export const payuRedirectToCheckout = async (req, res) => {
   try {

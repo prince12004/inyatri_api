@@ -2,7 +2,14 @@ import Joi from "joi";
 import {
   BOOKING_STATUS,
 } from "../../../utils/constants/booking.enums.js";
-import { MIN_MONTHLY_RENTAL_DAYS } from "../../../utils/constants/booking.constants.js";
+import {
+  MIN_MONTHLY_RENTAL_DAYS,
+  USER_SUBSCRIPTION_PLAN_TYPES,
+} from "../../../utils/constants/booking.constants.js";
+import {
+  isFixedUserPlanType,
+  normalizeUserPlanType,
+} from "../../../utils/selfDrive/plan.util.js";
 
 const bookingWindowFields = {
   car_id: Joi.number().integer().positive().required(),
@@ -10,7 +17,7 @@ const bookingWindowFields = {
   rental_type: Joi.string().valid("rental", "monthly").optional(),
   type: Joi.string().valid("rental", "monthly").optional(),
   plan_type: Joi.string()
-    .valid("15_days", "1_month", "3_months", "6_months", "custom")
+    .valid(...USER_SUBSCRIPTION_PLAN_TYPES, "custom")
     .optional()
     .allow(null, ""),
   payment_option: Joi.string().valid("full", "part").default("full"),
@@ -39,12 +46,17 @@ const validateBookingWindow = (value, helpers) => {
   value.rental_type = rentalType;
 
   if (rentalType === "monthly") {
-    const diffHours = (drop.getTime() - pickup.getTime()) / (1000 * 60 * 60);
-    const rentalDays = Math.ceil(diffHours / 24);
-    if (rentalDays < MIN_MONTHLY_RENTAL_DAYS) {
-      return helpers.message(
-        `Minimum duration for monthly subscription is ${MIN_MONTHLY_RENTAL_DAYS} days`
-      );
+    const planType = normalizeUserPlanType(value.plan_type, { rentalType: "monthly" });
+
+    // Fixed plans (1/3/6 month) bill by plan length; pickup/drop are the rental window only.
+    if (!isFixedUserPlanType(planType)) {
+      const diffHours = (drop.getTime() - pickup.getTime()) / (1000 * 60 * 60);
+      const rentalDays = Math.ceil(diffHours / 24);
+      if (rentalDays < MIN_MONTHLY_RENTAL_DAYS) {
+        return helpers.message(
+          `Minimum duration for monthly subscription is ${MIN_MONTHLY_RENTAL_DAYS} days`
+        );
+      }
     }
   }
 
@@ -71,7 +83,7 @@ export const availableCouponsQuerySchema = Joi.object({
   rental_type: Joi.string().valid("rental", "monthly").optional(),
   type: Joi.string().valid("rental", "monthly").optional(),
   plan_type: Joi.string()
-    .valid("15_days", "1_month", "3_months", "6_months", "custom")
+    .valid(...USER_SUBSCRIPTION_PLAN_TYPES, "custom")
     .optional(),
   pickup_at: Joi.date().iso().required(),
   drop_at: Joi.date().iso().required(),

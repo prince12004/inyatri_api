@@ -3,9 +3,18 @@ import * as selfDriveRepository from "../../repositories/user/selfDrive.reposito
 import * as cityRepository from "../../repositories/user/city.repository.js";
 import * as couponService from "./coupon.service.js";
 import ApiError from "../../utils/ApiError.js";
-import { buildBookingFareBreakdown } from "../../utils/booking/fareBreakdown.util.js";
+import {
+  buildBookingFareBreakdown,
+  fareBreakdownForClient,
+  resolveSelectedPaymentOption,
+} from "../../utils/booking/fareBreakdown.util.js";
 import { buildPayuCheckoutPayload } from "../../utils/payment/payu.util.js";
+import { maybeReconcileBookingPayment } from "../payment/payu.service.js";
 import { calculateRentalDays } from "../../utils/selfDrive/rental.util.js";
+import {
+  normalizeUserPlanType,
+  resolveMonthlyRentalDaysForPricing,
+} from "../../utils/selfDrive/plan.util.js";
 import {
   BOOKING_STATUS,
   BOOKING_STATUS_LABELS,
@@ -102,9 +111,16 @@ const formatBooking = (booking) => ({
 });
 
 const resolveBookingContext = async (payload, userId) => {
-  const rentalDays = calculateRentalDays(payload.pickup_at, payload.drop_at);
+  const rentalDaysFromDates = calculateRentalDays(payload.pickup_at, payload.drop_at);
   const rentalType = (payload.rental_type || payload.type || "rental").toLowerCase();
-  const planType = payload.plan_type || null;
+  const planType =
+    rentalType === "monthly"
+      ? normalizeUserPlanType(payload.plan_type, { rentalType })
+      : null;
+  const rentalDays =
+    rentalType === "monthly"
+      ? resolveMonthlyRentalDaysForPricing(planType, rentalDaysFromDates)
+      : rentalDaysFromDates;
 
   const city = await cityRepository.findActiveCityById(payload.city_id);
   if (!city) {
@@ -177,10 +193,15 @@ const resolveBookingContext = async (payload, userId) => {
 
 export const getBookingSummary = async (payload, userId) => {
   const context = await resolveBookingContext(payload, userId);
+  const { selected_payment_option, payment_option } = resolveSelectedPaymentOption(
+    context.fareBreakdown.payment_options,
+    payload.payment_option
+  );
 
   return {
     rental_type: context.fareBreakdown.rental_type,
     subscription_plan: context.fareBreakdown.plan_type,
+    selected_payment_option,
     car: {
       id: context.car.id,
       car_name: context.car.car_name,
@@ -203,8 +224,8 @@ export const getBookingSummary = async (payload, userId) => {
     drop_at: payload.drop_at,
     pickup_location: payload.pickup_location,
     drop_location: payload.drop_location,
-    fare_breakdown: context.fareBreakdown,
-    payment_options: context.fareBreakdown.payment_options,
+    fare_breakdown: fareBreakdownForClient(context.fareBreakdown),
+    payment_option,
     coupon: context.fareBreakdown.coupon
       ? {
           ...context.fareBreakdown.coupon,
@@ -449,10 +470,12 @@ export const listBookings = async (userId, query) =>
   }));
 
 export const getBookingById = async (bookingId, userId) => {
-  const booking = await bookingRepository.findBookingById(bookingId, userId);
+  let booking = await bookingRepository.findBookingById(bookingId, userId);
   if (!booking) {
     throw new ApiError(404, "Booking not found");
   }
+
+  booking = await maybeReconcileBookingPayment(booking);
   return formatBooking(booking);
 };
 

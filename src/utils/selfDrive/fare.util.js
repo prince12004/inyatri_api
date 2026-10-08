@@ -4,63 +4,70 @@ import {
   DEFAULT_PART_PAYMENT_PERCENT,
   SUBSCRIPTION_PLAN_DAYS,
 } from "../constants/booking.constants.js";
+import {
+  isFixedUserPlanType,
+  normalizeUserPlanType,
+  resolveMonthlyRentalDaysForPricing,
+} from "./plan.util.js";
 
 export const DEFAULT_BROWSE_RENTAL_DAYS = 1;
 
 const roundMoney = (val) => Math.round(Number(val) * 100) / 100;
 
+const USER_PLAN_DEFINITIONS = [
+  {
+    key: "1_month",
+    label: "1 Month",
+    duration_days: SUBSCRIPTION_PLAN_DAYS["1_month"],
+    discountField: "discount_1_month",
+  },
+  {
+    key: "3_months",
+    label: "3 Months",
+    duration_days: SUBSCRIPTION_PLAN_DAYS["3_months"],
+    discountField: "discount_3_months",
+  },
+  {
+    key: "6_months",
+    label: "6 Months",
+    duration_days: SUBSCRIPTION_PLAN_DAYS["6_months"],
+    discountField: "discount_6_months",
+  },
+];
+
 export const resolveMonthlyDiscountPercent = (car, rentalDays, planType = null) => {
-  if (planType) {
-    if (planType === "15_days") return Number(car.discount_15_days ?? 0);
+  if (planType && isFixedUserPlanType(planType)) {
     if (planType === "1_month") return Number(car.discount_1_month ?? 0);
     if (planType === "3_months") return Number(car.discount_3_months ?? 0);
     if (planType === "6_months") return Number(car.discount_6_months ?? 0);
   }
 
+  if (planType === "15_days") {
+    return Number(car.discount_15_days ?? 0);
+  }
+
   if (rentalDays >= 180) return Number(car.discount_6_months ?? 0);
   if (rentalDays >= 90) return Number(car.discount_3_months ?? 0);
   if (rentalDays >= 30) return Number(car.discount_1_month ?? 0);
-  if (rentalDays >= 15) return Number(car.discount_15_days ?? 0);
   return 0;
 };
 
-export const buildMonthlyPlansPreview = (car) => {
+export const buildMonthlyPlansPreview = (car, planType = null) => {
   const pricePerDay = getEffectivePricePerDay(car);
   if (!pricePerDay) return null;
 
   const kmPerDay = Number(car.travelling_allowed_per_day || 250);
   const refundableDeposit = Number(car.refundable_deposit ?? 0);
 
-  const plans = [
-    {
-      key: "15_days",
-      label: "15 Days",
-      duration_days: SUBSCRIPTION_PLAN_DAYS["15_days"],
-      discount_percent: Number(car.discount_15_days ?? 0),
-    },
-    {
-      key: "1_month",
-      label: "1 Month",
-      duration_days: SUBSCRIPTION_PLAN_DAYS["1_month"],
-      discount_percent: Number(car.discount_1_month ?? 0),
-    },
-    {
-      key: "3_months",
-      label: "3 Months",
-      duration_days: SUBSCRIPTION_PLAN_DAYS["3_months"],
-      discount_percent: Number(car.discount_3_months ?? 0),
-    },
-    {
-      key: "6_months",
-      label: "6 Months",
-      duration_days: SUBSCRIPTION_PLAN_DAYS["6_months"],
-      discount_percent: Number(car.discount_6_months ?? 0),
-    },
-  ];
+  let planDefs = USER_PLAN_DEFINITIONS;
+  if (planType && isFixedUserPlanType(planType)) {
+    planDefs = planDefs.filter((plan) => plan.key === planType);
+  }
 
-  return plans.map((plan) => {
+  return planDefs.map((plan) => {
+    const discountPercent = Number(car[plan.discountField] ?? 0);
     const originalFare = roundMoney(plan.duration_days * pricePerDay);
-    const discountAmount = roundMoney((originalFare * plan.discount_percent) / 100);
+    const discountAmount = roundMoney((originalFare * discountPercent) / 100);
     const tripFare = roundMoney(originalFare - discountAmount);
     const totalAmount = roundMoney(tripFare + refundableDeposit);
     const partPaymentAmount = roundMoney((totalAmount * DEFAULT_PART_PAYMENT_PERCENT) / 100);
@@ -69,7 +76,7 @@ export const buildMonthlyPlansPreview = (car) => {
       plan_key: plan.key,
       label: plan.label,
       duration_days: plan.duration_days,
-      discount_percent: plan.discount_percent,
+      discount_percent: discountPercent,
       price_per_day: pricePerDay,
       original_fare: originalFare,
       discount_amount: discountAmount,
@@ -99,11 +106,18 @@ export const buildFarePreview = (
   }
 
   const isMonthly = rentalType === "monthly";
+  const normalizedPlanType = isMonthly
+    ? normalizeUserPlanType(planType, { rentalType })
+    : null;
+  const pricingRentalDays = isMonthly
+    ? resolveMonthlyRentalDaysForPricing(normalizedPlanType, rentalDays)
+    : rentalDays;
+
   const discountPercent = isMonthly
-    ? resolveMonthlyDiscountPercent(car, rentalDays, planType)
+    ? resolveMonthlyDiscountPercent(car, pricingRentalDays, normalizedPlanType)
     : 0;
 
-  const baseRentalAmount = roundMoney(rentalDays * pricePerDay);
+  const baseRentalAmount = roundMoney(pricingRentalDays * pricePerDay);
   const planDiscountAmount = isMonthly
     ? roundMoney((baseRentalAmount * discountPercent) / 100)
     : 0;
@@ -114,7 +128,7 @@ export const buildFarePreview = (
 
   const preview = {
     rental_type: rentalType,
-    rental_days: rentalDays,
+    rental_days: pricingRentalDays,
     price_per_day: pricePerDay,
     base_rental_amount: baseRentalAmount,
     refundable_deposit: refundableDeposit,
@@ -131,11 +145,12 @@ export const buildFarePreview = (
   };
 
   if (isMonthly) {
+    preview.plan_type = normalizedPlanType;
     preview.plan_discount_percent = discountPercent;
     preview.plan_discount_amount = planDiscountAmount;
     preview.trip_fare = rentalTotal;
     preview.rental_total = rentalTotal;
-    preview.subscription_plans = buildMonthlyPlansPreview(car);
+    preview.subscription_plans = buildMonthlyPlansPreview(car, normalizedPlanType);
   } else {
     preview.rental_total = baseRentalAmount;
   }

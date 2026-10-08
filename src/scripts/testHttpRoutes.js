@@ -85,11 +85,15 @@ async function testHttpRoutes() {
       console.log('Status:', summaryRes.status, {
         rental_type: summaryData.data?.rental_type,
         total_amount: summaryData.data?.fare_breakdown?.total_amount,
-        part_payment: summaryData.data?.payment_options?.part_payment,
-        full_payment: summaryData.data?.payment_options?.full_payment,
+        selected_payment_option: summaryData.data?.selected_payment_option,
+        payment_option: summaryData.data?.payment_option,
       });
 
-      if (summaryRes.status !== 200 || !summaryData.data?.payment_options?.part_payment) {
+      if (
+        summaryRes.status !== 200 ||
+        !summaryData.data?.payment_option ||
+        summaryData.data?.selected_payment_option !== 'full'
+      ) {
         throw new Error('Booking summary API failed for monthly');
       }
     }

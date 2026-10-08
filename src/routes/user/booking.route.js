@@ -44,4 +44,11 @@ router.post(
   bookingController.retryBookingPayment
 );
 
+router.post(
+  "/:id/payments/sync",
+  auth.required,
+  validate({ params: schema.bookingIdParamSchema }),
+  bookingController.syncBookingPayment
+);
+
 export default router;

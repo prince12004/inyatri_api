@@ -124,3 +124,21 @@ export const buildBookingFareBreakdown = ({
       : null,
   };
 };
+
+export const resolveSelectedPaymentOption = (paymentOptions, selected = "full") => {
+  const selectedPaymentOption = selected === "part" ? "part" : "full";
+  const option =
+    selectedPaymentOption === "part"
+      ? paymentOptions.part_payment
+      : paymentOptions.full_payment;
+
+  return {
+    selected_payment_option: selectedPaymentOption,
+    payment_option: { ...option },
+  };
+};
+
+export const fareBreakdownForClient = (fareBreakdown) => {
+  const { payment_options: _paymentOptions, ...rest } = fareBreakdown;
+  return rest;
+};

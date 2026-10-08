@@ -4,8 +4,8 @@ import ApiError from "../../utils/ApiError.js";
 import {
   buildFarePreview,
   buildMonthlyPlansPreview,
-  resolveMonthlyDiscountPercent,
 } from "../../utils/selfDrive/fare.util.js";
+import { normalizeUserPlanType } from "../../utils/selfDrive/plan.util.js";
 import {
   getEffectivePricePerDay,
   resolveBrowseMode,
@@ -24,25 +24,38 @@ const formatCarListItem = (
   car,
   rentalDays,
   isEstimated,
-  rentalType = "rental"
+  rentalType = "rental",
+  planType = null
 ) => {
   const pricePerDay = getEffectivePricePerDay(car);
   const isMonthly = rentalType === "monthly";
-  const discountPercent = isMonthly
-    ? resolveMonthlyDiscountPercent(car, rentalDays)
-    : 0;
-
-  const baseRentalTotal = pricePerDay
-    ? Math.round(rentalDays * pricePerDay * 100) / 100
+  const normalizedPlanType = isMonthly
+    ? normalizeUserPlanType(planType, { rentalType })
     : null;
-  const discountAmount =
-    isMonthly && baseRentalTotal
-      ? Math.round(((baseRentalTotal * discountPercent) / 100) * 100) / 100
-      : 0;
-  const effectiveRentalTotal =
-    baseRentalTotal !== null
-      ? Math.round((baseRentalTotal - discountAmount) * 100) / 100
-      : null;
+
+  let baseRentalTotal = null;
+  let discountAmount = null;
+  let discountPercent = null;
+  let effectiveRentalTotal = null;
+  let pricingRentalDays = rentalDays;
+
+  if (isMonthly && pricePerDay) {
+    const farePreview = buildFarePreview(car, rentalDays, {
+      isEstimated,
+      rentalType,
+      planType: normalizedPlanType,
+    });
+    pricingRentalDays = farePreview.rental_days;
+    baseRentalTotal = farePreview.base_rental_amount;
+    discountAmount = farePreview.plan_discount_amount;
+    discountPercent = farePreview.plan_discount_percent;
+    effectiveRentalTotal = farePreview.trip_fare;
+  } else if (pricePerDay) {
+    baseRentalTotal = Math.round(rentalDays * pricePerDay * 100) / 100;
+    effectiveRentalTotal = baseRentalTotal;
+    discountAmount = 0;
+    discountPercent = 0;
+  }
 
   return {
     id: car.id,
@@ -57,8 +70,9 @@ const formatCarListItem = (
     main_image: car.main_image,
     location: car.location,
     rental_type: rentalType,
+    plan_type: normalizedPlanType,
     price_per_day: pricePerDay,
-    rental_days: rentalDays,
+    rental_days: pricingRentalDays,
     rental_total: effectiveRentalTotal,
     base_rental_total: baseRentalTotal,
     discount_amount: discountAmount,
@@ -97,6 +111,14 @@ const formatCarDetail = (
   planType = null
 ) => {
   const isMonthly = rentalType === "monthly";
+  const normalizedPlanType = isMonthly
+    ? normalizeUserPlanType(planType, { rentalType })
+    : null;
+  const farePreview = buildFarePreview(car, rentalDays, {
+    isEstimated,
+    rentalType,
+    planType: normalizedPlanType,
+  });
 
   return {
     id: car.id,
@@ -152,12 +174,11 @@ const formatCarDetail = (
       travelling_allowed_per_day: car.travelling_allowed_per_day,
       extra_charge_per_km: Number(car.extra_charge_per_km ?? 0),
     },
-    subscription_plans: isMonthly ? buildMonthlyPlansPreview(car) : null,
-    fare_preview: buildFarePreview(car, rentalDays, {
-      isEstimated,
-      rentalType,
-      planType,
-    }),
+    plan_type: normalizedPlanType,
+    subscription_plans: isMonthly
+      ? buildMonthlyPlansPreview(car, normalizedPlanType)
+      : null,
+    fare_preview: farePreview,
   };
 };
 
@@ -189,6 +210,7 @@ const buildFindCarsContext = async (payload) => {
 
   return {
     rental_type: rental.rental_type,
+    plan_type: rental.plan_type ?? null,
     mode: rental.mode,
     city,
     pickup_at: rental.pickup_at,
@@ -233,6 +255,7 @@ export const listCategories = async (query) => {
   
   return {
     rental_type: browse.rental_type,
+    plan_type: browse.plan_type ?? null,
     mode: browse.mode,
     city,
     rental_days: browse.rental_days,
@@ -264,6 +287,7 @@ export const listCars = async (query) => {
 
   return {
     rental_type: rental.rental_type,
+    plan_type: rental.plan_type ?? null,
     mode: rental.mode,
     city,
     pickup_at: rental.pickup_at,
@@ -271,7 +295,13 @@ export const listCars = async (query) => {
     rental_days: rental.rental_days,
     is_estimated: rental.is_estimated,
     rows: result.rows.map((car) =>
-      formatCarListItem(car, rental.rental_days, rental.is_estimated, rental.rental_type)
+      formatCarListItem(
+        car,
+        rental.rental_days,
+        rental.is_estimated,
+        rental.rental_type,
+        rental.plan_type
+      )
     ),
     count: result.count,
     pagination: result.pagination,
@@ -305,6 +335,6 @@ export const getCarById = async (carId, query) => {
     rental.rental_days,
     rental.is_estimated,
     rental.rental_type,
-    query.plan_type
+    rental.plan_type ?? query.plan_type
   );
 };

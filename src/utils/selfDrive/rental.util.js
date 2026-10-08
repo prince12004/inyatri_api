@@ -1,4 +1,8 @@
 import ApiError from "../ApiError.js";
+import {
+  normalizeUserPlanType,
+  resolveMonthlyRentalDaysForPricing,
+} from "./plan.util.js";
 
 const MS_PER_HOUR = 1000 * 60 * 60;
 
@@ -71,11 +75,15 @@ export const resolveRentalMode = (input = {}) => {
 
   if (rentalType === "monthly") {
     const cityId = hasCity ? Number(input.city_id) : null;
+    const planType = normalizeUserPlanType(input.plan_type, { rentalType: "monthly" });
+
     if (hasPickup && hasDrop) {
-      const rentalDays = calculateRentalDays(input.pickup_at, input.drop_at);
+      const daysFromDates = calculateRentalDays(input.pickup_at, input.drop_at);
+      const rentalDays = resolveMonthlyRentalDaysForPricing(planType, daysFromDates);
       return {
         mode: "find",
         rental_type: "monthly",
+        plan_type: planType,
         city_id: cityId,
         pickup_at: input.pickup_at,
         drop_at: input.drop_at,
@@ -84,13 +92,19 @@ export const resolveRentalMode = (input = {}) => {
       };
     }
 
+    const rentalDays = resolveMonthlyRentalDaysForPricing(
+      planType,
+      DEFAULT_MONTHLY_RENTAL_DAYS
+    );
+
     return {
       mode: hasCity ? "find" : "browse",
       rental_type: "monthly",
+      plan_type: planType,
       city_id: cityId,
       pickup_at: null,
       drop_at: null,
-      rental_days: DEFAULT_MONTHLY_RENTAL_DAYS,
+      rental_days: rentalDays,
       is_estimated: true,
     };
   }
@@ -128,17 +142,23 @@ export const resolveRentalMode = (input = {}) => {
 export const resolveBrowseMode = (input = {}) => {
   const rentalType = normalizeRentalType(input);
   const hasCity = input.city_id !== undefined && input.city_id !== null && input.city_id !== "";
+  const planType =
+    rentalType === "monthly"
+      ? normalizeUserPlanType(input.plan_type, { rentalType: "monthly" })
+      : null;
+  const monthlyDays =
+    rentalType === "monthly"
+      ? resolveMonthlyRentalDaysForPricing(planType, DEFAULT_MONTHLY_RENTAL_DAYS)
+      : DEFAULT_BROWSE_RENTAL_DAYS;
 
   return {
     mode: "browse",
     rental_type: rentalType,
+    plan_type: planType,
     city_id: hasCity ? Number(input.city_id) : null,
     pickup_at: null,
     drop_at: null,
-    rental_days:
-      rentalType === "monthly"
-        ? DEFAULT_MONTHLY_RENTAL_DAYS
-        : DEFAULT_BROWSE_RENTAL_DAYS,
+    rental_days: monthlyDays,
     is_estimated: true,
   };
 };
