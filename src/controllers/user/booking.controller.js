@@ -1,4 +1,5 @@
 import * as bookingService from "../../services/user/booking.service.js";
+import * as payuService from "../../services/payment/payu.service.js";
 import {
   buildDevPayuRedirectUrl,
   extractBearerToken,
@@ -132,6 +133,20 @@ export const getBookingById = async (req, res) => {
     return successResponse(booking, "Booking fetched successfully", res);
   } catch (error) {
     logger.error("getBookingById error:", error);
+    return errorResponse(error, res);
+  }
+};
+
+/** Poll PayU verify_payment when surl callback failed (OTP/timeout). */
+export const syncBookingPayment = async (req, res) => {
+  try {
+    const result = await payuService.syncBookingPaymentFromPayu(
+      req.params.id,
+      req.user.id
+    );
+    return successResponse(result, "Payment sync completed", res);
+  } catch (error) {
+    logger.error("syncBookingPayment error:", error);
     return errorResponse(error, res);
   }
 };

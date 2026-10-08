@@ -82,49 +82,183 @@ export const generatePayuRequestHash = ({
   return crypto.createHash("sha512").update(hashString).digest("hex");
 };
 
-export const verifyPayuResponseHash = (payload) => {
-  const { salt } = getPayuConfig();
-  const {
-    status,
-    email,
-    firstname,
-    productinfo,
-    amount,
-    txnid,
-    key,
-    hash,
-    udf1 = "",
-    udf2 = "",
-    udf3 = "",
-    udf4 = "",
-    udf5 = "",
-  } = payload;
+const normalizePayuField = (value) =>
+  value === undefined || value === null ? "" : String(value);
 
-  if (!hash) return false;
+export const buildPayuReverseHashString = (payload, salt) => {
+  const additionalCharges =
+    payload.additionalCharges ??
+    payload.additional_charges ??
+    payload.additionalcharges ??
+    "";
 
-  const hashString = [
+  const segments = [
     salt,
-    status,
+    normalizePayuField(payload.status),
     "",
     "",
     "",
     "",
     "",
-    udf5,
-    udf4,
-    udf3,
-    udf2,
-    udf1,
-    email,
-    firstname,
-    productinfo,
-    Number(amount).toFixed(2),
-    txnid,
-    key,
-  ].join("|");
+    normalizePayuField(payload.udf5),
+    normalizePayuField(payload.udf4),
+    normalizePayuField(payload.udf3),
+    normalizePayuField(payload.udf2),
+    normalizePayuField(payload.udf1),
+    normalizePayuField(payload.email),
+    normalizePayuField(payload.firstname),
+    normalizePayuField(payload.productinfo),
+    Number(payload.amount).toFixed(2),
+    normalizePayuField(payload.txnid),
+    normalizePayuField(payload.key),
+  ];
 
-  const expectedHash = crypto.createHash("sha512").update(hashString).digest("hex");
-  return expectedHash === hash;
+  if (additionalCharges !== "" && additionalCharges !== null) {
+    return [normalizePayuField(additionalCharges), ...segments].join("|");
+  }
+
+  return segments.join("|");
+};
+
+export const generatePayuResponseHash = (payload) => {
+  const { salt } = getPayuConfig();
+  const hashString = buildPayuReverseHashString(payload, salt);
+  return crypto.createHash("sha512").update(hashString).digest("hex");
+};
+
+export const verifyPayuResponseHash = (payload) => {
+  const { salt, key: merchantKey } = getPayuConfig();
+  const receivedHash = normalizePayuField(payload.hash).toLowerCase();
+
+  if (!receivedHash) return false;
+
+  if (payload.key && merchantKey && payload.key !== merchantKey) {
+    return false;
+  }
+
+  const expectedHash = generatePayuResponseHash(payload);
+  if (expectedHash.toLowerCase() === receivedHash) {
+    return true;
+  }
+
+  // Some PayU responses send amount without strict 2-decimal formatting in hash input
+  const amountVariants = [
+    Number(payload.amount).toFixed(2),
+    String(payload.amount),
+    Number(payload.amount).toString(),
+  ];
+  for (const amountStr of amountVariants) {
+    const variantPayload = { ...payload, amount: amountStr };
+    const variantHash = buildPayuReverseHashString(variantPayload, salt);
+    const digest = crypto.createHash("sha512").update(variantHash).digest("hex");
+    if (digest.toLowerCase() === receivedHash) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+/** PayU POSTs application/x-www-form-urlencoded; merge body + query defensively. */
+export const extractPayuCallbackPayload = (req) => ({
+  ...(req.query || {}),
+  ...(req.body || {}),
+});
+
+export const getPayuPostserviceUrl = () => {
+  const { env } = getPayuConfig();
+  return env === "production"
+    ? "https://info.payu.in/merchant/postservice?form=2"
+    : "https://test.payu.in/merchant/postservice?form=2";
+};
+
+export const generatePayuVerifyPaymentHash = (txnid) => {
+  const { key, salt } = getPayuConfig();
+  const command = "verify_payment";
+  const hashString = [key, command, txnid, salt].join("|");
+  return crypto.createHash("sha512").update(hashString).digest("hex");
+};
+
+/** Server-to-server status check (PayU recommended when browser callback fails). */
+export const fetchPayuTransactionStatus = async (txnid) => {
+  const { key } = getPayuConfig();
+  if (!key || !txnid) {
+    throw new Error("PayU is not configured or txnid is missing");
+  }
+
+  const body = new URLSearchParams({
+    key,
+    command: "verify_payment",
+    var1: String(txnid),
+    hash: generatePayuVerifyPaymentHash(txnid),
+  });
+
+  const response = await fetch(getPayuPostserviceUrl(), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+
+  const raw = await response.text();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { status: 0, msg: raw };
+  }
+};
+
+export const parsePayuVerifyPaymentResponse = (apiResponse, txnid) => {
+  if (
+    apiResponse &&
+    (apiResponse.status === 0 ||
+      apiResponse.status === "0" ||
+      String(apiResponse.status).toLowerCase() === "failed")
+  ) {
+    return {
+      status: "api_error",
+      error: apiResponse.msg || apiResponse.message || "PayU verify_payment failed",
+    };
+  }
+
+  const txKey = String(txnid);
+  const bucket = apiResponse?.transaction_details;
+  let details =
+    bucket?.[txKey] ??
+    bucket?.[txnid];
+
+  if (!details && bucket && typeof bucket === "object") {
+    const entry = Object.entries(bucket).find(
+      ([key]) => key.toLowerCase() === txKey.toLowerCase()
+    );
+    details = entry?.[1];
+    if (!details && Object.keys(bucket).length === 1) {
+      details = Object.values(bucket)[0];
+    }
+  }
+
+  if (!details) {
+    return null;
+  }
+
+  const status = String(details.status || "").toLowerCase();
+  const amount =
+    details.transaction_amount ??
+    details.amt ??
+    details.amount ??
+    details.net_amount_debit;
+
+  return {
+    status,
+    amount: amount != null ? Number(amount).toFixed(2) : null,
+    mihpayid: details.mihpayid ?? null,
+    bank_ref_num: details.bank_ref_num ?? null,
+    productinfo: details.productinfo ?? "",
+    firstname: details.firstname ?? "",
+    email: details.email ?? "",
+    txnid: details.txnid ?? txnid,
+    key: apiResponse?.key ?? getPayuConfig().key,
+    raw: details,
+  };
 };
 
 export const buildPayuCheckoutPayload = ({
@@ -143,12 +277,15 @@ export const buildPayuCheckoutPayload = ({
 
   // Hash must match posted fields exactly. PayU test gateway verifies with empty udf
   // when udf fields are omitted; booking is resolved on callback via txnid.
+  const udf1 = String(booking.id);
+
   const hash = generatePayuRequestHash({
     txnid,
     amount,
     productinfo,
     firstname,
     email,
+    udf1,
   });
 
   return {
@@ -160,6 +297,7 @@ export const buildPayuCheckoutPayload = ({
     firstname,
     email,
     phone: user.mobile,
+    udf1,
     surl: config.successUrl,
     furl: config.failureUrl,
     service_provider: "payu_paisa",
@@ -218,6 +356,7 @@ export const PAYU_FORM_FIELDS = [
   "firstname",
   "email",
   "phone",
+  "udf1",
   "surl",
   "furl",
   "service_provider",

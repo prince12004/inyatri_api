@@ -3,6 +3,11 @@ import {
   FUEL_TYPES,
   TRANSMISSION_TYPES,
 } from "../../../utils/constants/car.enums.js";
+import { USER_SUBSCRIPTION_PLAN_TYPES } from "../../../utils/constants/booking.constants.js";
+
+const userPlanTypeSchema = Joi.string()
+  .valid(...USER_SUBSCRIPTION_PLAN_TYPES, "custom")
+  .optional();
 
 const validateFindCarsWindow = (value, helpers) => {
   const rentalType = (value.rental_type || value.type || "rental").toLowerCase();
@@ -92,6 +97,7 @@ export const browseCategoriesQuerySchema = Joi.object({
   city_id: Joi.number().integer().positive().optional(),
   type: Joi.string().valid("rental", "monthly").optional(),
   rental_type: Joi.string().valid("rental", "monthly").optional(),
+  plan_type: userPlanTypeSchema,
 });
 
 /** Mode B — find cars button */
@@ -99,6 +105,7 @@ export const searchSelfDriveSchema = Joi.object({
   city_id: Joi.number().integer().positive().required(),
   type: Joi.string().valid("rental", "monthly").optional(),
   rental_type: Joi.string().valid("rental", "monthly").optional(),
+  plan_type: userPlanTypeSchema,
   pickup_at: Joi.date().iso().optional(),
   drop_at: Joi.date().iso().optional(),
 }).custom(validateFindCarsWindow);
@@ -108,6 +115,7 @@ export const listCarsQuerySchema = Joi.object({
   city_id: Joi.number().integer().positive().optional(),
   type: Joi.string().valid("rental", "monthly").optional(),
   rental_type: Joi.string().valid("rental", "monthly").optional(),
+  plan_type: userPlanTypeSchema,
   pickup_at: Joi.date().iso().optional(),
   drop_at: Joi.date().iso().optional(),
   car_type_id: Joi.number().integer().positive().optional(),
@@ -126,7 +134,7 @@ export const carDetailQuerySchema = Joi.object({
   city_id: Joi.number().integer().positive().optional(),
   type: Joi.string().valid("rental", "monthly").optional(),
   rental_type: Joi.string().valid("rental", "monthly").optional(),
-  plan_type: Joi.string().valid("15_days", "1_month", "3_months", "6_months").optional(),
+  plan_type: userPlanTypeSchema,
   pickup_at: Joi.date().iso().optional(),
   drop_at: Joi.date().iso().optional(),
 }).custom(validateFlexibleRentalQuery);

@@ -2,7 +2,7 @@ import * as bookingService from '../services/user/booking.service.js';
 import * as payuService from '../services/payment/payu.service.js';
 import { User, Car, Booking, BookingPayment, sequelize } from '../models/index.js';
 import { Op } from 'sequelize';
-import { generatePayuRequestHash } from '../utils/payment/payu.util.js';
+import { generatePayuResponseHash } from '../utils/payment/payu.util.js';
 
 async function testCheckoutAndCallback() {
   console.log('=== TESTING CHECKOUT AND CALLBACK FOR PART PAYMENT (25%) ===\n');
@@ -83,22 +83,7 @@ async function testCheckoutAndCallback() {
     udf1: String(checkoutResult.booking.id),
   };
 
-  // Generate valid response hash: salt|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
-  const crypto = await import('crypto');
-  const hashString = [
-    process.env.PAYU_MERCHANT_SALT,
-    payuPayload.status,
-    "", "", "", "", "",
-    "", "", "", "",
-    payuPayload.udf1,
-    payuPayload.email,
-    payuPayload.firstname,
-    payuPayload.productinfo,
-    Number(payuPayload.amount).toFixed(2),
-    payuPayload.txnid,
-    payuPayload.key,
-  ].join("|");
-  payuPayload.hash = crypto.createHash('sha512').update(hashString).digest('hex');
+  payuPayload.hash = generatePayuResponseHash(payuPayload);
 
   console.log('\n--- Simulating PayU Success Callback ---');
   const callbackResult = await payuService.handlePayuCallback(payuPayload);
