@@ -13,6 +13,12 @@ import Coupon from "./Coupon.js";
 import CouponUsage from "./CouponUsage.js";
 import Booking from "./Booking.js";
 import BookingPayment from "./BookingPayment.js";
+import CabPackage from "./CabPackage.js";
+import CabFareSlab from "./CabFareSlab.js";
+import CabBooking from "./CabBooking.js";
+import CabBookingPayment from "./CabBookingPayment.js";
+
+// ─── Self-Drive Associations ───────────────────────────────────────────────
 
 Car.belongsTo(CarBrand, { foreignKey: "brand_id", as: "brand" });
 CarBrand.hasMany(Car, { foreignKey: "brand_id", as: "cars" });
@@ -66,6 +72,50 @@ Booking.hasOne(CouponUsage, { foreignKey: "booking_id", as: "couponUsage" });
 BookingPayment.belongsTo(Booking, { foreignKey: "booking_id", as: "booking" });
 Booking.hasMany(BookingPayment, { foreignKey: "booking_id", as: "payments" });
 
+// ─── Cab Associations ──────────────────────────────────────────────────────
+
+// CabFareSlab ↔ Car (pricing per individual car)
+Car.hasMany(CabFareSlab, { foreignKey: "car_id", as: "cabPricings" });
+CabFareSlab.belongsTo(Car, { foreignKey: "car_id", as: "car" });
+
+// CabFareSlab ↔ CabPackage (for local trip type)
+CabPackage.hasMany(CabFareSlab, { foreignKey: "package_id", as: "fareSlabs" });
+CabFareSlab.belongsTo(CabPackage, { foreignKey: "package_id", as: "package" });
+
+// CabPackage ↔ City
+City.hasMany(CabPackage, { foreignKey: "city_id", as: "cabPackages" });
+CabPackage.belongsTo(City, { foreignKey: "city_id", as: "city" });
+
+// CabBooking ↔ User
+User.hasMany(CabBooking, { foreignKey: "user_id", as: "cabBookings" });
+CabBooking.belongsTo(User, { foreignKey: "user_id", as: "user" });
+
+// CabBooking ↔ Car (individual car selected)
+Car.hasMany(CabBooking, { foreignKey: "car_id", as: "cabBookings" });
+CabBooking.belongsTo(Car, { foreignKey: "car_id", as: "car" });
+
+// CabBooking ↔ City
+City.hasMany(CabBooking, { foreignKey: "city_id", as: "cabBookings" });
+CabBooking.belongsTo(City, { foreignKey: "city_id", as: "city" });
+
+// CabBooking ↔ Coupon
+Coupon.hasMany(CabBooking, { foreignKey: "coupon_id", as: "cabBookings" });
+CabBooking.belongsTo(Coupon, { foreignKey: "coupon_id", as: "coupon" });
+
+// CabBooking ↔ CabPackage
+CabPackage.hasMany(CabBooking, { foreignKey: "package_id", as: "cabBookings" });
+CabBooking.belongsTo(CabPackage, { foreignKey: "package_id", as: "package" });
+
+// CabBookingPayment ↔ CabBooking
+CabBooking.hasMany(CabBookingPayment, {
+  foreignKey: "cab_booking_id",
+  as: "payments",
+});
+CabBookingPayment.belongsTo(CabBooking, {
+  foreignKey: "cab_booking_id",
+  as: "cabBooking",
+});
+
 export {
   sequelize,
   User,
@@ -82,4 +132,8 @@ export {
   CouponUsage,
   Booking,
   BookingPayment,
+  CabPackage,
+  CabFareSlab,
+  CabBooking,
+  CabBookingPayment,
 };

@@ -1,4 +1,5 @@
 import * as bookingRepository from "../../repositories/user/booking.repository.js";
+import * as cabRepository from "../../repositories/user/cab.repository.js";
 import * as couponRepository from "../../repositories/admin/coupon.repository.js";
 import ApiError from "../../utils/ApiError.js";
 import {
@@ -149,6 +150,71 @@ const applyPaymentUpdate = async (booking, payload, outcome) => {
   });
 };
 
+const applyCabPaymentUpdate = async (booking, payload, outcome) => {
+  const latestAttempt = await cabRepository.findLatestCabPaymentAttempt(
+    booking.id
+  );
+
+  const responseAmount = Number(payload.amount);
+  const expectedAmount = Number(latestAttempt?.amount ?? booking.payable_amount);
+  if (
+    Number.isFinite(responseAmount) &&
+    Math.abs(responseAmount - expectedAmount) > 0.01
+  ) {
+    throw new ApiError(400, "Payment amount mismatch");
+  }
+
+  return cabRepository.withTransaction(async (transaction) => {
+    if (latestAttempt) {
+      await cabRepository.updateCabPaymentAttempt(
+        latestAttempt.id,
+        {
+          status: outcome.attemptStatus,
+          gateway_response: payload,
+        },
+        transaction
+      );
+    }
+
+    const isSuccess = outcome.paymentStatus === PAYMENT_STATUS.SUCCESS;
+    const paidAmount = isSuccess
+      ? Number(booking.paid_amount || 0) + responseAmount
+      : Number(booking.paid_amount || 0);
+
+    const bookingUpdates = {
+      booking_status: outcome.bookingStatus,
+      payment_status: outcome.paymentStatus,
+      paid_amount: paidAmount,
+      remaining_amount: Math.max(0, Number(booking.total_booking_amount) - paidAmount),
+      payu_txn_id: payload.txnid || booking.payu_txn_id,
+      payu_mihpayid: payload.mihpayid || null,
+      payu_payment_id: payload.payuMoneyId || payload.bank_ref_num || null,
+    };
+
+    await cabRepository.updateCabBooking(booking.id, bookingUpdates, transaction);
+
+    return {
+      booking_id: booking.id,
+      booking_ref: booking.booking_ref,
+      booking_status:
+        outcome.bookingStatus === BOOKING_STATUS.CONFIRMED
+          ? "confirmed"
+          : outcome.bookingStatus === BOOKING_STATUS.PAYMENT_CANCELLED
+            ? "payment_cancelled"
+            : "payment_failed",
+      payment_status:
+        outcome.paymentStatus === PAYMENT_STATUS.SUCCESS
+          ? "success"
+          : outcome.paymentStatus === PAYMENT_STATUS.CANCELLED
+            ? "cancelled"
+            : "failed",
+      txnid: payload.txnid,
+      amount: payload.amount,
+      is_cab: true,
+    };
+  });
+};
+
 const buildPayloadFromVerify = (verified, booking) => ({
   status: verified.status,
   amount: verified.amount,
@@ -168,12 +234,22 @@ export const reconcilePaymentByTxnid = async (txnid) => {
     return { reconciled: false, reason: "missing_txnid" };
   }
 
-  const booking = await bookingRepository.findBookingByPayuTxnId(txnid);
+  let booking = await bookingRepository.findBookingByPayuTxnId(txnid);
+  let isCab = false;
+  if (!booking) {
+    booking = await cabRepository.findCabBookingByPayuTxnId(txnid);
+    if (booking) isCab = true;
+  }
+
   if (!booking) {
     return { reconciled: false, reason: "booking_not_found" };
   }
 
-  if (isBookingPaymentComplete(booking)) {
+  const isComplete = isCab
+    ? booking.payment_status === PAYMENT_STATUS.SUCCESS
+    : isBookingPaymentComplete(booking);
+
+  if (isComplete) {
     return {
       reconciled: true,
       result: {
@@ -181,11 +257,12 @@ export const reconcilePaymentByTxnid = async (txnid) => {
         booking_ref: booking.booking_ref,
         booking_status: "confirmed",
         payment_status:
-          booking.payment_status === PAYMENT_STATUS.PARTIALLY_PAID
+          !isCab && booking.payment_status === PAYMENT_STATUS.PARTIALLY_PAID
             ? "partially_paid"
             : "success",
         already_processed: true,
         source: "verify_payment",
+        is_cab: isCab,
       },
     };
   }
@@ -243,13 +320,17 @@ export const reconcilePaymentByTxnid = async (txnid) => {
         payu_status: verified.status,
         source: "verify_payment",
         message: "Payment is still pending at PayU",
+        is_cab: isCab,
       },
     };
   }
 
   const payload = buildPayloadFromVerify(verified, booking);
   const outcome = resolvePaymentOutcome(payload);
-  const result = await applyPaymentUpdate(booking, payload, outcome);
+  const result = isCab
+    ? await applyCabPaymentUpdate(booking, payload, outcome)
+    : await applyPaymentUpdate(booking, payload, outcome);
+
   return { reconciled: true, result: { ...result, source: "verify_payment" } };
 };
 
@@ -274,28 +355,52 @@ export const handlePayuCallback = async (payload) => {
   }
 
   let booking = null;
+  let isCab = payload.udf2 === "cab";
   const bookingIdFromUdf = Number(payload.udf1);
-  if (bookingIdFromUdf) {
-    booking = await bookingRepository.findBookingById(bookingIdFromUdf);
+
+  if (isCab) {
+    if (bookingIdFromUdf) {
+      booking = await cabRepository.findCabBookingById(bookingIdFromUdf);
+    }
+    if (!booking && txnid) {
+      booking = await cabRepository.findCabBookingByPayuTxnId(txnid);
+    }
+  } else {
+    if (bookingIdFromUdf) {
+      booking = await bookingRepository.findBookingById(bookingIdFromUdf);
+    }
+    if (!booking && txnid) {
+      booking = await bookingRepository.findBookingByPayuTxnId(txnid);
+    }
+    if (!booking && txnid) {
+      booking = await cabRepository.findCabBookingByPayuTxnId(txnid);
+      if (booking) isCab = true;
+    }
   }
-  if (!booking && txnid) {
-    booking = await bookingRepository.findBookingByPayuTxnId(txnid);
-  }
+
   if (!booking) {
     throw new ApiError(404, "Booking not found for this payment");
   }
-  if (isBookingPaymentComplete(booking)) {
+
+  const isComplete = isCab
+    ? booking.payment_status === PAYMENT_STATUS.SUCCESS
+    : isBookingPaymentComplete(booking);
+
+  if (isComplete) {
     return {
       booking_id: booking.id,
       booking_ref: booking.booking_ref,
       booking_status: "confirmed",
       payment_status: "success",
       already_processed: true,
+      is_cab: isCab,
     };
   }
 
   const outcome = resolvePaymentOutcome(payload);
-  return applyPaymentUpdate(booking, payload, outcome);
+  return isCab
+    ? applyCabPaymentUpdate(booking, payload, outcome)
+    : applyPaymentUpdate(booking, payload, outcome);
 };
 
 /** Reconcile with PayU when browser/surl callback failed (verify_payment API). */
@@ -321,6 +426,40 @@ export const syncBookingPaymentFromPayu = async (bookingId, userId) => {
 
   if (!booking.payu_txn_id) {
     throw new ApiError(400, "No PayU transaction id on this booking");
+  }
+
+  const verified = await reconcilePaymentByTxnid(booking.payu_txn_id);
+  if (verified.reconciled && verified.result) {
+    return verified.result;
+  }
+
+  throw new ApiError(
+    502,
+    verified.payu_message ||
+      "Unable to verify payment status with PayU. Check PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT on the server."
+  );
+};
+
+export const syncCabBookingPaymentFromPayu = async (bookingId, userId) => {
+  const booking = await cabRepository.findCabBookingById(bookingId, userId);
+  if (!booking) {
+    throw new ApiError(404, "Cab booking not found");
+  }
+
+  if (booking.payment_status === PAYMENT_STATUS.SUCCESS) {
+    return {
+      booking_id: booking.id,
+      booking_ref: booking.booking_ref,
+      booking_status: "confirmed",
+      payment_status: "success",
+      already_processed: true,
+      source: "verify_payment",
+      is_cab: true,
+    };
+  }
+
+  if (!booking.payu_txn_id) {
+    throw new ApiError(400, "No PayU transaction id on this cab booking");
   }
 
   const verified = await reconcilePaymentByTxnid(booking.payu_txn_id);

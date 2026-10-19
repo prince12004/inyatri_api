@@ -9,6 +9,7 @@ import cityRoute from "./city.route.js";
 import carTypeRoute from "./carType.route.js";
 import carRoute from "./car.route.js";
 import couponRoute from "./coupon.route.js";
+import cabRoute from "./cab.route.js";
 
 router.use("/auth", adminAuthRoute);
 router.use("/car-brands", carBrandRoute);
@@ -18,5 +19,6 @@ router.use("/cities", cityRoute);
 router.use("/car-types", carTypeRoute);
 router.use("/cars", carRoute);
 router.use("/coupons", couponRoute);
+router.use("/cab", cabRoute);
 
 export default router;
