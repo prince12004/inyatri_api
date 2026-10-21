@@ -375,7 +375,37 @@ const collection = {
           },
         },
         {
-          name: "1.11 Pricing Slabs - Update",
+          name: "1.11 Pricing Slabs - Add Airport",
+          request: {
+            method: "POST",
+            header: [
+              { key: "Authorization", value: "Bearer {{admin_token}}" },
+              { key: "Content-Type", value: "application/json" },
+            ],
+            body: {
+              mode: "raw",
+              raw: JSON.stringify(
+                {
+                  car_id: 1,
+                  trip_type: "airport",
+                  base_km: 40,
+                  base_fare: 999,
+                  per_km_charge: 14,
+                  driver_allowance: 150,
+                },
+                null,
+                2
+              ),
+            },
+            url: {
+              raw: "{{baseUrl}}/api/admin/v1/cab/pricing",
+              host: ["{{baseUrl}}"],
+              path: ["api", "admin", "v1", "cab", "pricing"],
+            },
+          },
+        },
+        {
+          name: "1.12 Pricing Slabs - Update",
           request: {
             method: "PUT",
             header: [
@@ -403,7 +433,7 @@ const collection = {
           },
         },
         {
-          name: "1.12 Pricing Slabs - Toggle Status",
+          name: "1.13 Pricing Slabs - Toggle Status",
           request: {
             method: "PATCH",
             header: [
@@ -422,7 +452,7 @@ const collection = {
           },
         },
         {
-          name: "1.13 Pricing Slabs - Delete",
+          name: "1.14 Pricing Slabs - Delete",
           request: {
             method: "DELETE",
             header: [{ key: "Authorization", value: "Bearer {{admin_token}}" }],
@@ -1022,9 +1052,257 @@ const collection = {
       ],
     },
 
-    // ─── 5. User Cab Bookings (History & Filters) ──────────────────────────
+    // ─── 5. Flow D - Airport Cab Flow ──────────────────────────────────────
     {
-      name: "5. User Cab Bookings (History & Filters)",
+      name: "5. Flow D - Airport Cab Flow",
+      description: "Complete flow for Airport trips (To/From Airport, strictly point-to-point without intermediate stops): Search -> Car Listing -> Car Detail -> Summary -> Checkout -> Details -> Retry -> Sync Payment.",
+      item: [
+        {
+          name: "Step 1 - Search Airport Cabs (To Airport)",
+          request: {
+            method: "POST",
+            header: [{ key: "Content-Type", value: "application/json" }],
+            body: {
+              mode: "raw",
+              raw: JSON.stringify(
+                {
+                  trip_type: "airport",
+                  airport_direction: "to_airport",
+                  airport_name: "BLR Airport T1",
+                  pickup_location: "HSR Layout, Sector 2, Bengaluru",
+                  drop_location: "Kempegowda International Airport, Terminal 1, Bengaluru",
+                  distance_km: 45,
+                  departure_at: "{{departure_at}}",
+                },
+                null,
+                2
+              ),
+            },
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/search",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "cab", "search"],
+            },
+          },
+        },
+        {
+          name: "Step 2 - Search Airport Cabs (From Airport)",
+          request: {
+            method: "POST",
+            header: [{ key: "Content-Type", value: "application/json" }],
+            body: {
+              mode: "raw",
+              raw: JSON.stringify(
+                {
+                  trip_type: "airport",
+                  airport_direction: "from_airport",
+                  airport_name: "BLR Airport T1",
+                  pickup_location: "Kempegowda International Airport, Terminal 1, Bengaluru",
+                  drop_location: "HSR Layout, Sector 2, Bengaluru",
+                  distance_km: 45,
+                  departure_at: "{{departure_at}}",
+                },
+                null,
+                2
+              ),
+            },
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/search",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "cab", "search"],
+            },
+          },
+        },
+        {
+          name: "Step 3 - List Airport Cars with Calculated Fares",
+          request: {
+            method: "GET",
+            header: [],
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/cars?trip_type=airport&distance_km=45&departure_at={{departure_at}}&airport_name=BLR%20Airport%20T1&airport_direction=to_airport&page=1&limit=20",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "cab", "cars"],
+              query: [
+                { key: "trip_type", value: "airport" },
+                { key: "distance_km", value: "45" },
+                { key: "departure_at", value: "{{departure_at}}" },
+                { key: "airport_name", value: "BLR Airport T1" },
+                { key: "airport_direction", value: "to_airport" },
+                { key: "page", value: "1" },
+                { key: "limit", value: "20" },
+              ],
+            },
+          },
+        },
+        {
+          name: "Step 4 - Get Airport Car Detail & Fare Breakdown",
+          request: {
+            method: "GET",
+            header: [],
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/cars/{{car_id}}?trip_type=airport&distance_km=45",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "cab", "cars", "{{car_id}}"],
+              query: [
+                { key: "trip_type", value: "airport" },
+                { key: "distance_km", value: "45" },
+              ],
+            },
+          },
+        },
+        {
+          name: "Step 5 - Review Airport Booking Summary (Auth)",
+          request: {
+            method: "POST",
+            header: [
+              { key: "Authorization", value: "Bearer {{user_token}}" },
+              { key: "Content-Type", value: "application/json" },
+            ],
+            body: {
+              mode: "raw",
+              raw: JSON.stringify(
+                {
+                  car_id: 1,
+                  trip_type: "airport",
+                  airport_name: "BLR Airport T1",
+                  airport_direction: "to_airport",
+                  pickup_location: "HSR Layout, Sector 2, Bengaluru",
+                  drop_location: "Kempegowda International Airport, Terminal 1, Bengaluru",
+                  distance_km: 45,
+                  departure_at: "{{departure_at}}",
+                  contact_number: "9876543210",
+                },
+                null,
+                2
+              ),
+            },
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/bookings/summary",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "cab", "bookings", "summary"],
+            },
+          },
+        },
+        {
+          name: "Step 6 - Checkout Airport Booking & Generate PayU Form (Auth)",
+          event: [
+            {
+              listen: "test",
+              script: {
+                exec: [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.data && json.data.booking) {",
+                  "        pm.collectionVariables.set('cab_booking_id', json.data.booking.id);",
+                  "        if (json.data.booking.payu_txn_id) {",
+                  "            pm.collectionVariables.set('payu_txn_id', json.data.booking.payu_txn_id);",
+                  "        }",
+                  "        console.log('Saved airport cab_booking_id:', json.data.booking.id);",
+                  "    }",
+                  "}",
+                ],
+                type: "text/javascript",
+              },
+            },
+          ],
+          request: {
+            method: "POST",
+            header: [
+              { key: "Authorization", value: "Bearer {{user_token}}" },
+              { key: "Content-Type", value: "application/json" },
+            ],
+            body: {
+              mode: "raw",
+              raw: JSON.stringify(
+                {
+                  car_id: 1,
+                  trip_type: "airport",
+                  airport_name: "BLR Airport T1",
+                  airport_direction: "to_airport",
+                  pickup_location: "HSR Layout, Sector 2, Bengaluru",
+                  drop_location: "Kempegowda International Airport, Terminal 1, Bengaluru",
+                  distance_km: 45,
+                  departure_at: "{{departure_at}}",
+                  contact_number: "9876543210",
+                },
+                null,
+                2
+              ),
+            },
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/bookings/checkout",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "cab", "bookings", "checkout"],
+            },
+          },
+        },
+        {
+          name: "Step 7 - Get Airport Booking Details",
+          request: {
+            method: "GET",
+            header: [{ key: "Authorization", value: "Bearer {{user_token}}" }],
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/bookings/{{cab_booking_id}}",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "cab", "bookings", "{{cab_booking_id}}"],
+            },
+          },
+        },
+        {
+          name: "Step 8 - Retry Payment (Initiate New PayU Session)",
+          event: [
+            {
+              listen: "test",
+              script: {
+                exec: [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.data && json.data.booking && json.data.booking.payu_txn_id) {",
+                  "        pm.collectionVariables.set('payu_txn_id', json.data.booking.payu_txn_id);",
+                  "    }",
+                  "}",
+                ],
+                type: "text/javascript",
+              },
+            },
+          ],
+          request: {
+            method: "POST",
+            header: [{ key: "Authorization", value: "Bearer {{user_token}}" }],
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/bookings/{{cab_booking_id}}/pay",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "cab", "bookings", "{{cab_booking_id}}", "pay"],
+            },
+          },
+        },
+        {
+          name: "Step 9 - Sync Airport Payment Status with PayU",
+          request: {
+            method: "POST",
+            header: [{ key: "Authorization", value: "Bearer {{user_token}}" }],
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/cab/bookings/{{cab_booking_id}}/payments/sync",
+              host: ["{{baseUrl}}"],
+              path: [
+                "api",
+                "user",
+                "v1",
+                "cab",
+                "bookings",
+                "{{cab_booking_id}}",
+                "payments",
+                "sync",
+              ],
+            },
+          },
+        },
+      ],
+    },
+
+    // ─── 6. User Cab Bookings (History & Filters) ──────────────────────────
+    {
+      name: "6. User Cab Bookings (History & Filters)",
       description: "View and filter user's cab bookings.",
       item: [
         {
@@ -1084,9 +1362,9 @@ const collection = {
       ],
     },
 
-    // ─── 6. Payment Callback Simulators ───────────────────────────────────
+    // ─── 7. Payment Callback Simulators ───────────────────────────────────
     {
-      name: "6. Payment Callback Simulators (PayU)",
+      name: "7. Payment Callback Simulators (PayU)",
       description: "Simulate PayU browser callbacks to test payment confirmation without live gateway.",
       item: [
         {
