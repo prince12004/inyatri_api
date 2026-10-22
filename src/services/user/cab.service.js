@@ -235,16 +235,20 @@ export const searchCabs = async (payload) => {
     };
   }).filter(Boolean);
 
+  const isAirport = trip_type === CAB_TRIP_TYPES.AIRPORT;
+
   return {
     trip_type,
     city: city ? { id: city.id, short_name: city.short_name, name: city.name } : null,
     package: pkg ? { id: pkg.id, label: pkg.label, duration_hours: pkg.duration_hours, included_km: pkg.included_km } : null,
     pickup_location: payload.pickup_location,
     drop_location: payload.drop_location ?? null,
-    stops: payload.stops ?? [],
+    stops: isAirport ? [] : (payload.stops ?? []),
     distance_km: payload.distance_km ?? null,
     departure_at: payload.departure_at,
     return_at: payload.return_at ?? null,
+    airport_name: payload.airport_name ?? null,
+    airport_direction: payload.airport_direction ?? null,
     total_available: carResults.length,
     cars: carResults,
     note: "Exact driver is assigned by InYatri after booking.",
@@ -307,6 +311,8 @@ export const listCabCars = async (query) => {
     distance_km: distance_km ?? null,
     departure_at: query.departure_at ?? null,
     package: pkg ? { id: pkg.id, label: pkg.label, duration_hours: pkg.duration_hours, included_km: pkg.included_km } : null,
+    airport_name: query.airport_name ?? null,
+    airport_direction: query.airport_direction ?? null,
     total_available: result.count,
     cars,
     pagination: result.pagination,
@@ -353,6 +359,8 @@ export const getCabCarDetail = async (carId, query) => {
           included_km: (pkg ?? slab.package).included_km,
         }
       : null,
+    airport_name: query.airport_name ?? null,
+    airport_direction: query.airport_direction ?? null,
     fare_preview: fareBreakdownForClient(fareBreakdown),
     note: "Exact driver is assigned by InYatri after booking.",
   };
@@ -380,6 +388,7 @@ export const getCabBookingSummary = async (payload, userId) => {
   }
 
   const context = coupon ? await resolveCabFareContext(payload, coupon) : baseContext;
+  const isAirport = payload.trip_type === CAB_TRIP_TYPES.AIRPORT;
 
   return {
     trip_type: payload.trip_type,
@@ -388,10 +397,12 @@ export const getCabBookingSummary = async (payload, userId) => {
       trip_type: payload.trip_type,
       pickup_location: payload.pickup_location,
       drop_location: payload.drop_location ?? null,
-      stops: payload.stops ?? [],
+      stops: isAirport ? [] : (payload.stops ?? []),
       departure_at: payload.departure_at,
       return_at: payload.return_at ?? null,
       distance_km: payload.distance_km ?? null,
+      airport_name: payload.airport_name ?? null,
+      airport_direction: payload.airport_direction ?? null,
     },
     package: context.pkg
       ? { id: context.pkg.id, label: context.pkg.label, duration_hours: context.pkg.duration_hours, included_km: context.pkg.included_km }
@@ -453,6 +464,7 @@ export const checkoutCabBooking = async (payload, user) => {
   const context = coupon ? await resolveCabFareContext(payload, coupon) : baseContext;
   const { fareBreakdown, pkg } = context;
   const totalAmount = fareBreakdown.total_amount;
+  const isAirport = payload.trip_type === CAB_TRIP_TYPES.AIRPORT;
 
   return cabRepository.withTransaction(async (transaction) => {
     const booking = await cabRepository.createCabBooking(
@@ -466,7 +478,7 @@ export const checkoutCabBooking = async (payload, user) => {
         trip_type: payload.trip_type,
         pickup_location: payload.pickup_location.trim(),
         drop_location: payload.drop_location?.trim() ?? null,
-        stops: payload.stops ?? [],
+        stops: isAirport ? [] : (payload.stops ?? []),
         departure_at: payload.departure_at,
         return_at: payload.return_at ?? null,
         distance_km: payload.distance_km ?? null,

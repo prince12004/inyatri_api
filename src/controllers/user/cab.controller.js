@@ -77,6 +77,8 @@ export const listCabCars = async (req, res) => {
         departure_at: data.departure_at,
         package: data.package,
         total_available: data.total_available,
+        airport_name: data.airport_name,
+        airport_direction: data.airport_direction,
         note: data.note,
       }
     );

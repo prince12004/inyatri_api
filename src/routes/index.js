@@ -21,4 +21,5 @@ router.use('/api/user/v1', userRoutes);
 router.use('/api/admin/v1', adminRoutes);
 
 
+
 export default router;

@@ -18,10 +18,22 @@ export const searchCabSchema = Joi.object({
   return_at: Joi.date().iso().optional().allow(null),
   package_id: Joi.number().integer().positive().optional().allow(null),
   contact_number: Joi.string().pattern(mobileRegex).optional(),
+  airport_name: Joi.string().trim().max(200).optional().allow(null, ""),
+  airport_direction: Joi.string().valid("to_airport", "from_airport").optional().allow(null, ""),
 }).custom((value, helpers) => {
   if (value.trip_type === CAB_TRIP_TYPES.LOCAL) {
     if (!value.package_id) {
       return helpers.message("package_id is required for local trip type");
+    }
+  } else if (value.trip_type === CAB_TRIP_TYPES.AIRPORT) {
+    if (!value.drop_location) {
+      return helpers.message("drop_location is required for airport trip type");
+    }
+    if (value.distance_km === undefined || value.distance_km === null || value.distance_km <= 0) {
+      return helpers.message("distance_km is required and must be greater than 0");
+    }
+    if (value.stops && value.stops.length > 0) {
+      return helpers.message("extra stops are not allowed for airport trip type");
     }
   } else {
     if (!value.drop_location) {
@@ -51,6 +63,8 @@ export const listCabCarsQuerySchema = Joi.object({
   pickup_location: Joi.string().trim().max(300).optional(),
   drop_location: Joi.string().trim().max(300).optional(),
   departure_at: Joi.date().iso().optional(),
+  airport_name: Joi.string().trim().max(200).optional(),
+  airport_direction: Joi.string().valid("to_airport", "from_airport").optional(),
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(20),
 });
@@ -68,6 +82,8 @@ export const cabCarDetailQuerySchema = Joi.object({
   city_id: Joi.number().integer().positive().optional(),
   package_id: Joi.number().integer().positive().optional(),
   distance_km: Joi.number().positive().optional(),
+  airport_name: Joi.string().trim().max(200).optional(),
+  airport_direction: Joi.string().valid("to_airport", "from_airport").optional(),
 });
 
 // ─── Booking Summary & Checkout ───────────────────────────────────────────
@@ -89,10 +105,22 @@ export const cabBookingSummarySchema = Joi.object({
     "string.pattern.base": "contact_number must be a valid 10-digit Indian mobile number",
   }),
   coupon_code: Joi.string().trim().uppercase().optional().allow(null, ""),
+  airport_name: Joi.string().trim().max(200).optional().allow(null, ""),
+  airport_direction: Joi.string().valid("to_airport", "from_airport").optional().allow(null, ""),
 }).custom((value, helpers) => {
   if (value.trip_type === CAB_TRIP_TYPES.LOCAL) {
     if (!value.package_id) {
       return helpers.message("package_id is required for local trip type");
+    }
+  } else if (value.trip_type === CAB_TRIP_TYPES.AIRPORT) {
+    if (!value.drop_location) {
+      return helpers.message("drop_location is required for airport trip type");
+    }
+    if (value.distance_km === undefined || value.distance_km === null || value.distance_km <= 0) {
+      return helpers.message("distance_km is required and must be greater than 0");
+    }
+    if (value.stops && value.stops.length > 0) {
+      return helpers.message("extra stops are not allowed for airport trip type");
     }
   } else {
     if (!value.drop_location) {
