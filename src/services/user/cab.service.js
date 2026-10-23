@@ -306,8 +306,8 @@ export const listCabCars = async (query) => {
 
   return {
     trip_type,
-    pickup_location: query.pickup_location ?? null,
-    drop_location: query.drop_location ?? null,
+    pickup_location: query.pickup_location?.trim() || null,
+    drop_location: query.drop_location?.trim() || null,
     distance_km: distance_km ?? null,
     departure_at: query.departure_at ?? null,
     package: pkg ? { id: pkg.id, label: pkg.label, duration_hours: pkg.duration_hours, included_km: pkg.included_km } : null,
@@ -359,6 +359,8 @@ export const getCabCarDetail = async (carId, query) => {
           included_km: (pkg ?? slab.package).included_km,
         }
       : null,
+    pickup_location: query.pickup_location?.trim() || null,
+    drop_location: query.drop_location?.trim() || null,
     airport_name: query.airport_name ?? null,
     airport_direction: query.airport_direction ?? null,
     fare_preview: fareBreakdownForClient(fareBreakdown),

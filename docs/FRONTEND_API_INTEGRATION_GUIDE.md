@@ -357,6 +357,8 @@ Search -> Car Listing -> Car Detail -> Review Summary -> Checkout -> PayU Redire
 - `distance_km`: Number (Required for one_way, round_trip, airport)
 - `city_id`: Number (Required for local)
 - `package_id`: Number (Required for local)
+- `pickup_location`: Optional string (Pickup address/landmark)
+- `drop_location`: Optional string (Drop address/landmark)
 - `departure_at`: ISO Date string
 - `return_at`: ISO Date string (Required for round_trip)
 - `airport_name`, `airport_direction`: Optional for airport
