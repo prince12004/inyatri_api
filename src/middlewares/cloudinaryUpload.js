@@ -31,3 +31,25 @@ export const uploadMultipleImages = multer({
   },
   fileFilter: imageFilter,
 }).array("files", 4);
+
+const userDocsMulter = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 10 * 1024 * 1024,
+  },
+  fileFilter: imageFilter,
+}).fields([
+  { name: "driving_license_front", maxCount: 1 },
+  { name: "driving_license_back", maxCount: 1 },
+  { name: "government_id", maxCount: 1 },
+  { name: "picture", maxCount: 1 },
+]);
+
+export const uploadUserDocs = (req, res, next) => {
+  const contentType = req.headers["content-type"] || "";
+  if (contentType.includes("multipart/form-data")) {
+    return userDocsMulter(req, res, next);
+  }
+  return next();
+};
+

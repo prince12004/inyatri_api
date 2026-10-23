@@ -76,6 +76,25 @@ const User = sequelize.define(
       type: DataTypes.STRING(512),
       allowNull: true,
     },
+    fcm_token: {
+      type: DataTypes.STRING(512),
+      allowNull: true,
+    },
+    driving_license_front: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      defaultValue: null,
+    },
+    driving_license_back: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      defaultValue: null,
+    },
+    government_id: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      defaultValue: null,
+    },
     marketing_opt_in: {
       type: DataTypes.TINYINT,
       allowNull: false,

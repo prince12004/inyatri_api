@@ -39,6 +39,10 @@ const Admin = sequelize.define(
       allowNull: false,
       defaultValue: "",
     },
+    fcm_token: {
+      type: DataTypes.STRING(512),
+      allowNull: true,
+    },
     status: {
       type: DataTypes.INTEGER,
       allowNull: false,

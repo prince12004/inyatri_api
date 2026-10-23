@@ -13,9 +13,11 @@ import {
   storeOtp,
   verifyStoredOtp,
 } from "../../services/otp.service.js";
+import { notifyUserAccountCreated } from "../../services/notification.service.js";
 import { sendOtpSms } from "../../utils/sms/twilioService.js";
 import { shouldUseStaticPhoneOtp } from "../../utils/otp.util.js";
 import ApiError from "../../utils/ApiError.js";
+import { uploadBufferToCloudinary } from "../../services/admin/upload.service.js";
 import {
   successResponse,
   tooManyRequestResponse,
@@ -82,6 +84,7 @@ const verifyOtpHandler = async (req, res) => {
   const countryCode = normalizeCountryCode(req.body.country_code);
   const mobile = normalizeMobile(req.body.mobile);
   const otp = String(req.body.otp).trim();
+  const fcmToken = (req.body.fcm_token || req.body.device_token)?.trim() || null;
 
   try {
     const cooldown = await getOtpCooldown(countryCode, mobile);
@@ -150,6 +153,7 @@ const verifyOtpHandler = async (req, res) => {
             city: "",
             address: "",
             password: "",
+            fcm_token: fcmToken,
             is_google_user: User.USER_TYPES.NORMAL,
             status: User.STATUS.ACTIVE,
           },
@@ -158,7 +162,11 @@ const verifyOtpHandler = async (req, res) => {
       }
 
       const token = signUserToken(user);
-      await user.update({ token }, { transaction });
+      const userUpdates = { token };
+      if (fcmToken) {
+        userUpdates.fcm_token = fcmToken;
+      }
+      await user.update(userUpdates, { transaction });
 
       await transaction.commit();
     } catch (dbError) {
@@ -173,6 +181,12 @@ const verifyOtpHandler = async (req, res) => {
     }
 
     await user.reload();
+
+    if (isNewUser) {
+      notifyUserAccountCreated(user).catch((err) =>
+        logger.error("Failed to trigger account creation notification:", err)
+      );
+    }
 
     const userResponse = formatUserResponse(user);
 
@@ -205,6 +219,19 @@ const resendOtpHandler = async (req, res) => {
   return sendOtpHandler(req, res);
 };
 
+const getProfileHandler = async (req, res) => {
+  try {
+    return successResponse(
+      formatUserResponse(req.user),
+      "User profile fetched successfully",
+      res
+    );
+  } catch (error) {
+    logger.error("getProfile error:", error);
+    return errorResponse(error, res);
+  }
+};
+
 const completeProfileHandler = async (req, res) => {
   try {
     const user = req.user;
@@ -228,12 +255,72 @@ const completeProfileHandler = async (req, res) => {
       updates.referral_code = req.body.referral_code;
     }
 
+    if (req.body.city !== undefined) {
+      updates.city = req.body.city;
+    }
+
+    if (req.body.address !== undefined) {
+      updates.address = req.body.address;
+    }
+
+    if (req.body.picture !== undefined) {
+      updates.picture = req.body.picture;
+    }
+
+    if (req.body.driving_license_front !== undefined) {
+      updates.driving_license_front = req.body.driving_license_front;
+    }
+
+    if (req.body.driving_license_back !== undefined) {
+      updates.driving_license_back = req.body.driving_license_back;
+    }
+
+    if (req.body.government_id !== undefined) {
+      updates.government_id = req.body.government_id;
+    }
+
+    // Process file uploads if uploaded via multipart/form-data
+    if (req.files) {
+      if (req.files.driving_license_front?.[0]) {
+        const uploadRes = await uploadBufferToCloudinary(
+          req.files.driving_license_front[0].buffer,
+          "inyatri/user_docs"
+        );
+        updates.driving_license_front = uploadRes.secure_url;
+      }
+      if (req.files.driving_license_back?.[0]) {
+        const uploadRes = await uploadBufferToCloudinary(
+          req.files.driving_license_back[0].buffer,
+          "inyatri/user_docs"
+        );
+        updates.driving_license_back = uploadRes.secure_url;
+      }
+      if (req.files.government_id?.[0]) {
+        const uploadRes = await uploadBufferToCloudinary(
+          req.files.government_id[0].buffer,
+          "inyatri/user_docs"
+        );
+        updates.government_id = uploadRes.secure_url;
+      }
+      if (req.files.picture?.[0]) {
+        const uploadRes = await uploadBufferToCloudinary(
+          req.files.picture[0].buffer,
+          "inyatri/profile"
+        );
+        updates.picture = uploadRes.secure_url;
+      }
+    }
+
     if (req.body.agreed_to_terms !== undefined) {
       updates.agreed_to_terms = req.body.agreed_to_terms ? 1 : 0;
     }
 
     if (req.body.marketing_opt_in !== undefined) {
       updates.marketing_opt_in = req.body.marketing_opt_in ? 1 : 0;
+    }
+
+    if (req.body.fcm_token !== undefined || req.body.device_token !== undefined) {
+      updates.fcm_token = (req.body.fcm_token || req.body.device_token)?.trim() || null;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -258,6 +345,21 @@ const completeProfileHandler = async (req, res) => {
   }
 };
 
+const updateFcmTokenHandler = async (req, res) => {
+  try {
+    const fcmToken = (req.body.fcm_token || req.body.device_token)?.trim() || null;
+    await req.user.update({ fcm_token: fcmToken });
+    return successResponse(
+      { fcm_token: fcmToken },
+      "FCM device token updated successfully",
+      res
+    );
+  } catch (error) {
+    logger.error("updateFcmToken error:", error);
+    return errorResponse(error, res);
+  }
+};
+
 const logoutHandler = async (req, res) => {
   try {
     await req.user.update({ token: null });
@@ -272,6 +374,9 @@ export {
   sendOtpHandler,
   verifyOtpHandler,
   resendOtpHandler,
+  getProfileHandler,
   completeProfileHandler,
+  completeProfileHandler as updateProfileHandler,
+  updateFcmTokenHandler,
   logoutHandler,
 };

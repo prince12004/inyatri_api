@@ -17,6 +17,7 @@ import CabPackage from "./CabPackage.js";
 import CabFareSlab from "./CabFareSlab.js";
 import CabBooking from "./CabBooking.js";
 import CabBookingPayment from "./CabBookingPayment.js";
+import Notification from "./Notification.js";
 
 // ─── Self-Drive Associations ───────────────────────────────────────────────
 
@@ -116,6 +117,11 @@ CabBookingPayment.belongsTo(CabBooking, {
   as: "cabBooking",
 });
 
+// ─── Notification Associations ─────────────────────────────────────────────
+
+Notification.belongsTo(User, { foreignKey: "user_id", as: "user" });
+User.hasMany(Notification, { foreignKey: "user_id", as: "notifications" });
+
 export {
   sequelize,
   User,
@@ -136,4 +142,5 @@ export {
   CabFareSlab,
   CabBooking,
   CabBookingPayment,
+  Notification,
 };

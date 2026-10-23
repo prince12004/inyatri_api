@@ -18,6 +18,10 @@ import {
   PAYMENT_ATTEMPT_STATUS,
   PAYMENT_STATUS,
 } from "../../utils/constants/booking.enums.js";
+import {
+  notifyBookingConfirmed,
+  notifyBookingDateReminder,
+} from "../notification.service.js";
 import logger from "../../utils/logger.js";
 
 const isBookingPaymentComplete = (booking) =>
@@ -148,6 +152,21 @@ const applyPaymentUpdate = async (booking, payload, outcome) => {
       amount: payload.amount,
     };
   });
+
+  if (outcome.bookingStatus === BOOKING_STATUS.CONFIRMED) {
+    notifyBookingConfirmed(booking, false).catch((err) =>
+      logger.error("Failed to notify self-drive booking confirmation:", err)
+    );
+
+    const pickupDate = booking.pickup_at ? new Date(booking.pickup_at) : null;
+    if (pickupDate && pickupDate.toDateString() === new Date().toDateString()) {
+      notifyBookingDateReminder(booking, false).catch((err) =>
+        logger.error("Failed to notify booking date reminder:", err)
+      );
+    }
+  }
+
+  return updateResult;
 };
 
 const applyCabPaymentUpdate = async (booking, payload, outcome) => {
@@ -213,6 +232,21 @@ const applyCabPaymentUpdate = async (booking, payload, outcome) => {
       is_cab: true,
     };
   });
+
+  if (outcome.bookingStatus === BOOKING_STATUS.CONFIRMED) {
+    notifyBookingConfirmed(booking, true).catch((err) =>
+      logger.error("Failed to notify cab booking confirmation:", err)
+    );
+
+    const departureDate = booking.departure_at ? new Date(booking.departure_at) : null;
+    if (departureDate && departureDate.toDateString() === new Date().toDateString()) {
+      notifyBookingDateReminder(booking, true).catch((err) =>
+        logger.error("Failed to notify cab booking date reminder:", err)
+      );
+    }
+  }
+
+  return updateResult;
 };
 
 const buildPayloadFromVerify = (verified, booking) => ({
