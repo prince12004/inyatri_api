@@ -31,3 +31,17 @@ export const loginAdmin = async ({ email, password }) => {
     admin: formatAdminResponse(admin),
   };
 };
+
+export const updateAdminFcmToken = async (adminId, fcmToken) => {
+  const admin = await authRepository.findAdminById(adminId);
+  if (!admin) {
+    throw new ApiError(404, "Admin not found");
+  }
+
+  await authRepository.updateAdmin(adminId, {
+    fcm_token: fcmToken ? String(fcmToken).trim() : null,
+  });
+
+  return { fcm_token: fcmToken };
+};
+

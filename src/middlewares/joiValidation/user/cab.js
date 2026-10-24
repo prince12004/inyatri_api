@@ -57,14 +57,14 @@ export const listCabCarsQuerySchema = Joi.object({
   trip_type: Joi.string()
     .valid(...CAB_TRIP_TYPE_LIST)
     .required(),
-  city_id: Joi.number().integer().positive().optional(),
-  package_id: Joi.number().integer().positive().optional(),
-  distance_km: Joi.number().positive().optional(),
-  pickup_location: Joi.string().trim().max(300).optional(),
-  drop_location: Joi.string().trim().max(300).optional(),
-  departure_at: Joi.date().iso().optional(),
-  airport_name: Joi.string().trim().max(200).optional(),
-  airport_direction: Joi.string().valid("to_airport", "from_airport").optional(),
+  city_id: Joi.number().integer().positive().optional().allow(null),
+  package_id: Joi.number().integer().positive().optional().allow(null),
+  distance_km: Joi.number().positive().optional().allow(null),
+  pickup_location: Joi.string().trim().max(300).optional().allow(null, ""),
+  drop_location: Joi.string().trim().max(300).optional().allow(null, ""),
+  departure_at: Joi.date().iso().optional().allow(null),
+  airport_name: Joi.string().trim().max(200).optional().allow(null, ""),
+  airport_direction: Joi.string().valid("to_airport", "from_airport").optional().allow(null, ""),
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(20),
 });
@@ -79,11 +79,13 @@ export const cabCarDetailQuerySchema = Joi.object({
   trip_type: Joi.string()
     .valid(...CAB_TRIP_TYPE_LIST)
     .required(),
-  city_id: Joi.number().integer().positive().optional(),
-  package_id: Joi.number().integer().positive().optional(),
-  distance_km: Joi.number().positive().optional(),
-  airport_name: Joi.string().trim().max(200).optional(),
-  airport_direction: Joi.string().valid("to_airport", "from_airport").optional(),
+  city_id: Joi.number().integer().positive().optional().allow(null),
+  package_id: Joi.number().integer().positive().optional().allow(null),
+  distance_km: Joi.number().positive().optional().allow(null),
+  pickup_location: Joi.string().trim().max(300).optional().allow(null, ""),
+  drop_location: Joi.string().trim().max(300).optional().allow(null, ""),
+  airport_name: Joi.string().trim().max(200).optional().allow(null, ""),
+  airport_direction: Joi.string().valid("to_airport", "from_airport").optional().allow(null, ""),
 });
 
 // ─── Booking Summary & Checkout ───────────────────────────────────────────

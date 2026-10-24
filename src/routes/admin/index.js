@@ -10,8 +10,11 @@ import carTypeRoute from "./carType.route.js";
 import carRoute from "./car.route.js";
 import couponRoute from "./coupon.route.js";
 import cabRoute from "./cab.route.js";
+import notificationRoute from "./notification.route.js";
+import userRoute from "./user.route.js";
 
 router.use("/auth", adminAuthRoute);
+router.use("/users", userRoute);
 router.use("/car-brands", carBrandRoute);
 router.use("/car-features", carFeatureRoute);
 router.use("/states", stateRoute);
@@ -20,5 +23,6 @@ router.use("/car-types", carTypeRoute);
 router.use("/cars", carRoute);
 router.use("/coupons", couponRoute);
 router.use("/cab", cabRoute);
+router.use("/notifications", notificationRoute);
 
 export default router;

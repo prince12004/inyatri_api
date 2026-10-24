@@ -12,16 +12,19 @@
 ## 📑 Table of Contents
 1. [Core Standards & Conventions](#1-core-standards--conventions)
 2. [PayU Payment Gateway Integration (Web & Mobile)](#2-payu-payment-gateway-integration)
-3. [USER APIS — Authentication](#3-user-apis--authentication)
-4. [USER APIS — Self-Drive Car Rental & Subscription](#4-user-apis--self-drive-car-rental--subscription)
-5. [USER APIS — Cab Flow (One-Way, Round-Trip, Local, Airport)](#5-user-apis--cab-flow)
-6. [USER APIS — Coupons](#6-user-apis--coupons)
-7. [ADMIN APIS — Authentication](#7-admin-apis--authentication)
-8. [ADMIN APIS — Master Data (Cities, States, Brands, Types, Features)](#8-admin-apis--master-data)
-9. [ADMIN APIS — Cars Inventory Management](#9-admin-apis--cars-inventory-management)
-10. [ADMIN APIS — Coupon Management](#10-admin-apis--coupon-management)
-11. [ADMIN APIS — Cab Management & Pricing Engine](#11-admin-apis--cab-management--pricing-engine)
-12. [Postman Collections & Testing Resources](#12-postman-collections--testing-resources)
+3. [USER APIS — Authentication, Profile & Documents](#3-user-apis--authentication-profile--documents)
+4. [USER APIS — Unified Bookings Hub (Mobile "Bookings" Tab)](#4-user-apis--unified-bookings-hub-mobile-bookings-tab)
+5. [USER APIS — Self-Drive Car Rental & Subscription](#5-user-apis--self-drive-car-rental--subscription)
+6. [USER APIS — Cab Flow (One-Way, Round-Trip, Local, Airport)](#6-user-apis--cab-flow)
+7. [USER APIS — Coupons](#7-user-apis--coupons)
+8. [ADMIN APIS — Authentication](#8-admin-apis--authentication)
+9. [ADMIN APIS — User Management & Document Verification](#9-admin-apis--user-management--document-verification)
+10. [ADMIN APIS — Master Data (Cities, States, Brands, Types, Features)](#10-admin-apis--master-data)
+11. [ADMIN APIS — Cars Inventory Management](#11-admin-apis--cars-inventory-management)
+12. [ADMIN APIS — Coupon Management](#12-admin-apis--coupon-management)
+13. [ADMIN APIS — Cab Management & Pricing Engine](#13-admin-apis--cab-management--pricing-engine)
+14. [Push Notifications & In-App Notifications (Bell Icon)](#14-push-notifications--in-app-notifications-bell-icon)
+15. [Postman Collections & Testing Resources](#15-postman-collections--testing-resources)
 
 ---
 
@@ -170,7 +173,234 @@ Base prefix: `/api/user/v1/auth`
 
 ---
 
-## 4. USER APIS — Self-Drive Car Rental & Subscription
+### 3.2 User Profile & Documents (Driving License & Govt ID)
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/profile` or `/me` | User Auth | Fetch full logged-in user profile with document URLs |
+| `PATCH` | `/profile` | User Auth | Update user details and document URLs/files optionally |
+| `POST` | `/complete-profile` | User Auth | Complete/update profile on onboarding or later |
+
+Users can update documents at any time either:
+1. **As JSON**: passing document URLs (`driving_license_front`, `driving_license_back`, `government_id`).
+2. **As Multipart Form-Data**: uploading actual image files directly in fields `driving_license_front`, `driving_license_back`, `government_id`, `picture`.
+
+#### `GET /api/user/v1/auth/profile` *(or `/me`)*
+**Headers**: `Authorization: Bearer <TOKEN>`  
+**Response (200)**:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "User profile fetched successfully",
+  "data": {
+    "id": 1,
+    "mobile": "9876543210",
+    "country_code": "+91",
+    "firstname": "Rahul",
+    "lastname": "Sharma",
+    "full_name": "Rahul Sharma",
+    "email": "rahul@example.com",
+    "dob": "1998-05-15",
+    "city": "Bengaluru",
+    "address": "123 Indiranagar, Bengaluru",
+    "picture": "https://res.cloudinary.com/demo/image/upload/user_pic.jpg",
+    "driving_license_front": "https://res.cloudinary.com/demo/image/upload/dl_front.jpg",
+    "driving_license_back": "https://res.cloudinary.com/demo/image/upload/dl_back.jpg",
+    "government_id": "https://res.cloudinary.com/demo/image/upload/gov_id.jpg",
+    "marketing_opt_in": 1,
+    "agreed_to_terms": 1,
+    "status": 1
+  }
+}
+```
+
+#### `PATCH /api/user/v1/auth/profile` *(or `POST /complete-profile`)*
+**Headers**: `Authorization: Bearer <TOKEN>`  
+**Request Body (JSON option)**:
+```json
+{
+  "full_name": "Rahul Sharma",
+  "email": "rahul@example.com",
+  "dob": "1998-05-15",
+  "city": "Bengaluru",
+  "address": "123 Indiranagar",
+  "driving_license_front": "https://res.cloudinary.com/demo/image/upload/dl_front.jpg",
+  "driving_license_back": "https://res.cloudinary.com/demo/image/upload/dl_back.jpg",
+  "government_id": "https://res.cloudinary.com/demo/image/upload/gov_id.jpg"
+}
+```
+*(All fields are optional; update only what has changed).*
+
+---
+
+## 4. USER APIS — Unified Bookings Hub (Mobile "Bookings" Tab)
+
+Base prefix: `/api/user/v1/bookings`
+
+This unified endpoint powers the mobile **Bookings** tab shown in the app design. It seamlessly consolidates both **Self-Drive** and **Cab** bookings with dual-tier filtering (Status & Trip Type) and formatted cards.
+
+### 4.1 Filter Options
+- **Row 1 (Status Tabs)**:
+  - `all` (All bookings)
+  - `upcoming` (Scheduled trips & ongoing rides)
+  - `completed` (Concluded trips)
+  - `cancelled` (Cancelled or failed bookings)
+- **Row 2 (Trip Type Chips)**:
+  - `all` (All categories)
+  - `self_drive` (Self-drive rentals & subscriptions)
+  - `one_way` (One-way cab rides)
+  - `round_trip` (Round-trip outstation cabs)
+  - `local` (or `local_rental` - Local hourly packages)
+  - `airport` (Airport transfers)
+
+---
+
+### 4.2 List Unified Bookings
+`GET /api/user/v1/bookings` *(Auth Required)*  
+**Query Parameters**:
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `status` | string | `all` | `all`, `upcoming`, `completed`, `cancelled` |
+| `trip_type` | string | `all` | `all`, `self_drive`, `one_way`, `round_trip`, `local`, `airport` |
+| `page` | integer | `1` | Page number |
+| `limit` | integer | `20` | Items per page (max 100) |
+
+**Sample Request**:
+```
+GET /api/user/v1/bookings?status=upcoming&trip_type=one_way&page=1&limit=20
+```
+
+**Response (200 - Exact Mobile Card Representation)**:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "Bookings fetched successfully",
+  "data": [
+    {
+      "id": 5521,
+      "booking_ref": "IY-CAB-5521",
+      "category": "cab",
+      "category_label": "Cab",
+      "trip_type": "one_way",
+      "trip_type_label": "One Way",
+      "car_name": "Innova Crysta",
+      "car_image": "https://res.cloudinary.com/.../innova.jpg",
+      "status": "upcoming",
+      "status_label": "upcoming",
+      "status_badge_color": "#FF7A00",
+      "price": 3880,
+      "currency": "₹",
+      "formatted_price": "₹3880",
+      "location": "Bengaluru...",
+      "pickup_location": "Bengaluru Airport Terminal 1, Bengaluru",
+      "drop_location": "Mysuru Central",
+      "scheduled_at": "2026-06-28T09:00:00.000Z",
+      "scheduled_at_formatted": "Sun, 28 Jun · 9:00 AM",
+      "ends_at": null,
+      "ends_at_formatted": null,
+      "booking_status_raw": 5,
+      "booking_status_label": "confirmed",
+      "payment_status_raw": 3,
+      "payment_status_label": "success",
+      "created_at": "2026-06-23T08:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1,
+    "totalRecords": 1
+  }
+}
+```
+
+---
+
+### 4.3 Get Booking Detail
+`GET /api/user/v1/bookings/:id` *(Auth Required)*  
+*`:id` can be either numeric booking ID or alphanumeric `booking_ref` (e.g. `IY-CAB-5521` or `5521`).*  
+**Optional Query**: `?type=cab` or `?type=self_drive` (auto-detected if omitted).
+
+**Response (200)**:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "Booking details fetched successfully",
+  "data": {
+    "id": 5521,
+    "booking_ref": "IY-CAB-5521",
+    "category": "cab",
+    "category_label": "Cab",
+    "trip_type": "one_way",
+    "trip_type_label": "One Way",
+    "car_name": "Innova Crysta",
+    "status": "upcoming",
+    "status_label": "upcoming",
+    "status_badge_color": "#FF7A00",
+    "price": 3880,
+    "formatted_price": "₹3880",
+    "scheduled_at_formatted": "Sun, 28 Jun · 9:00 AM",
+    "car": {
+      "id": 12,
+      "car_name": "Innova Crysta",
+      "vehicle_number": "KA-01-AB-1234",
+      "seats": 7,
+      "fuel_type": "diesel",
+      "transmission": "manual",
+      "made_year": 2024,
+      "main_image": "https://res.cloudinary.com/.../innova.jpg",
+      "brand": { "id": 1, "name": "Toyota" },
+      "car_type": { "id": 3, "name": "SUV" }
+    },
+    "trip_details": {
+      "pickup_location": "Bengaluru Airport Terminal 1, Bengaluru",
+      "drop_location": "Mysuru Central",
+      "stops": [],
+      "scheduled_at": "2026-06-28T09:00:00.000Z",
+      "scheduled_at_formatted": "Sun, 28 Jun · 9:00 AM",
+      "ends_at": null,
+      "ends_at_formatted": null,
+      "distance_km": 145.5,
+      "rental_days": null
+    },
+    "contact_number": "9876543210",
+    "fare_breakdown": {
+      "base_fare": 3500,
+      "driver_allowance": 200,
+      "gst_amount": 180,
+      "discount_amount": 0,
+      "payable_amount": 3880,
+      "total_booking_amount": 3880,
+      "paid_amount": 3880,
+      "remaining_amount": 0
+    },
+    "coupon": null,
+    "payment_summary": {
+      "payment_option": "full",
+      "payment_status": "success",
+      "payu_txn_id": "IYC5521-1-1729500000000",
+      "payments": [
+        {
+          "id": 1,
+          "attempt_no": 1,
+          "amount": 3880,
+          "status": "success",
+          "payu_txn_id": "IYC5521-1-1729500000000",
+          "created_at": "2026-06-23T08:05:00.000Z"
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## 5. USER APIS — Self-Drive Car Rental & Subscription
+
 
 Base prefix: `/api/user/v1/self-drive`
 
@@ -357,6 +587,8 @@ Search -> Car Listing -> Car Detail -> Review Summary -> Checkout -> PayU Redire
 - `distance_km`: Number (Required for one_way, round_trip, airport)
 - `city_id`: Number (Required for local)
 - `package_id`: Number (Required for local)
+- `pickup_location`: Optional string (Pickup address/landmark)
+- `drop_location`: Optional string (Drop address/landmark)
 - `departure_at`: ISO Date string
 - `return_at`: ISO Date string (Required for round_trip)
 - `airport_name`, `airport_direction`: Optional for airport
@@ -458,7 +690,7 @@ Base prefix: `/api/user/v1/self-drive/coupons`
 
 ---
 
-## 7. ADMIN APIS — Authentication
+## 8. ADMIN APIS — Authentication
 
 Base prefix: `/api/admin/v1/auth`
 
@@ -485,7 +717,101 @@ Base prefix: `/api/admin/v1/auth`
 
 ---
 
-## 8. ADMIN APIS — Master Data
+## 9. ADMIN APIS — User Management & Document Verification
+
+Base prefix: `/api/admin/v1/users`  
+*All endpoints require `Authorization: Bearer <admin_token>`.*
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | List users with search, status & document filters |
+| `GET` | `/:id` | Get user details with documents and booking stats |
+| `PATCH` | `/:id` | Update user details or document URLs |
+| `PATCH` | `/:id/status` | Activate (`1`) or Deactivate (`2`) user account |
+| `DELETE` | `/:id` | Deactivate user account |
+
+### 9.1 List Users
+`GET /api/admin/v1/users`  
+**Query Parameters**:
+- `page`: Integer (default 1)
+- `limit`: Integer (default 20, max 100)
+- `search`: String (matches firstname, lastname, mobile, email)
+- `status`: Integer `1` (Active) or `2` (Inactive)
+- `has_documents`: Boolean `true` (users with DL or Govt ID uploaded) or `false`
+
+**Response (200)**:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "Users fetched successfully",
+  "data": [
+    {
+      "id": 1,
+      "firstname": "Rahul",
+      "lastname": "Sharma",
+      "full_name": "Rahul Sharma",
+      "mobile": "9876543210",
+      "country_code": "+91",
+      "email": "rahul@example.com",
+      "city": "Bengaluru",
+      "status": 1,
+      "has_driving_license": true,
+      "has_government_id": true,
+      "documents_uploaded": true,
+      "driving_license_front": "https://res.cloudinary.com/.../dl_front.jpg",
+      "driving_license_back": "https://res.cloudinary.com/.../dl_back.jpg",
+      "government_id": "https://res.cloudinary.com/.../gov_id.jpg"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1,
+    "totalRecords": 1
+  }
+}
+```
+
+### 9.2 Get User Detail
+`GET /api/admin/v1/users/:id`  
+**Response (200)**:
+Returns full user profile with document URLs plus booking activity counts:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "User details fetched successfully",
+  "data": {
+    "id": 1,
+    "full_name": "Rahul Sharma",
+    "mobile": "9876543210",
+    "email": "rahul@example.com",
+    "driving_license_front": "https://res.cloudinary.com/.../dl_front.jpg",
+    "driving_license_back": "https://res.cloudinary.com/.../dl_back.jpg",
+    "government_id": "https://res.cloudinary.com/.../gov_id.jpg",
+    "has_driving_license": true,
+    "has_government_id": true,
+    "self_drive_bookings_count": 3,
+    "cab_bookings_count": 2,
+    "total_bookings_count": 5,
+    "status": 1
+  }
+}
+```
+
+### 9.3 Update User Status
+`PATCH /api/admin/v1/users/:id/status`  
+**Request Body**:
+```json
+{
+  "status": 1 // 1 = Active, 2 = Deactivated/Blocked
+}
+```
+
+---
+
+## 10. ADMIN APIS — Master Data
 
 All endpoints require `Authorization: Bearer <admin_token>`.
 
@@ -724,7 +1050,7 @@ Returns list of active cars with their configured pricing counts:
 
 You can share these JSON collections with the frontend team for instant API importing and testing:
 
-1. **🌟 Master Single Collection (ALL 108 APIs in Project — User & Admin)**:  
+1. **🌟 Master Single Collection (ALL APIs in Project — User & Admin)**:  
    📂 `postman/INYATRI_All_APIs.postman_collection.json`  
    *(Also mirrored to `postman/INYATRI.postman_collection.json`)*
 2. **Dedicated Cab Flow (All 4 Trip Types + Admin Management)**:  
@@ -733,3 +1059,101 @@ You can share these JSON collections with the frontend team for instant API impo
    📂 `postman/INYATRI_Airport_Cab_Flow.postman_collection.json`
 4. **Environment Variables Template**:  
    📂 `postman/INYATRI.postman_environment.json`
+
+---
+
+## 13. Push Notifications & In-App Notifications (Bell Icon)
+
+Firebase Cloud Messaging (FCM) is configured for push notifications. All notifications are also persisted in MySQL for the **Bell Icon** notification center.
+
+### 13.1 Update Device FCM Token
+Call this upon login, token refresh, or app launch to bind the client's FCM token.
+
+- `POST /api/user/v1/auth/fcm-token` *(Auth Required)*
+- `PATCH /api/user/v1/auth/fcm-token` *(Auth Required)*
+- `POST /api/user/v1/notifications/fcm-token` *(Auth Required)*
+
+**Request Body**:
+```json
+{
+  "fcm_token": "eX_example_fcm_registration_token_from_firebase_sdk"
+}
+```
+*(Accepts either `fcm_token` or `device_token`)*
+
+*Note*: You can also pass `fcm_token` / `device_token` directly in the payload of `POST /api/user/v1/auth/verify-otp` and `POST /api/user/v1/auth/complete-profile`.
+
+---
+
+### 13.2 In-App Notifications (Bell Icon Center)
+
+#### A. List Notifications (with Unread Count & Pagination)
+`GET /api/user/v1/notifications?page=1&limit=20` *(Auth Required)*  
+Query options: `page`, `limit`, `is_read` (`0` for unread only, `1` for read only).
+
+**Response**:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "Notifications fetched successfully",
+  "data": [
+    {
+      "id": 1,
+      "title": "Booking Confirmed! 🎉",
+      "body": "Your Cab booking #IYC-00001 is confirmed. Thank you for booking with InYatri!",
+      "type": "booking_confirmed",
+      "data": {
+        "booking_id": 1,
+        "booking_ref": "IYC-00001",
+        "is_cab": true,
+        "type": "booking_confirmed"
+      },
+      "is_read": 0,
+      "read_at": null,
+      "created_at": "2026-10-23T12:00:00.000Z"
+    }
+  ],
+  "unread_count": 1,
+  "pagination": {
+    "totalItems": 1,
+    "currentPage": 1,
+    "totalPages": 1,
+    "limit": 20
+  }
+}
+```
+
+#### B. Quick Unread Count (For Bell Icon Badge)
+`GET /api/user/v1/notifications/unread-count` *(Auth Required)*  
+**Response**:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "Unread count fetched successfully",
+  "data": {
+    "unread_count": 3
+  }
+}
+```
+
+#### C. Mark Single Notification as Read
+`PATCH /api/user/v1/notifications/:id/read` *(Auth Required)*
+
+#### D. Mark All Notifications as Read
+`PATCH /api/user/v1/notifications/read-all` *(Auth Required)*
+
+---
+
+### 13.3 Automatic Push Notification Triggers
+
+1. **Booking Confirmation**:
+   - **To User**: Push notification sent + bell icon record saved when payment succeeds or booking is confirmed.
+   - **To Admin**: Push notification sent to all active admin devices + bell icon record saved.
+2. **Booking Date Reminder / Acknowledgment**:
+   - **To User**: On the scheduled departure/pickup date, the user receives an acknowledgment push + bell icon notification reminder.
+3. **User Account Creation**:
+   - **To User**: Welcome notification sent + bell icon notification saved.
+   - **To Admin**: Notification sent to admin regarding the newly registered customer.
+

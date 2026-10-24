@@ -33,4 +33,20 @@ const adminLoginHandler = async (req, res) => {
   }
 };
 
-export { adminLoginHandler };
+const updateFcmTokenHandler = async (req, res) => {
+  try {
+    const adminId = req.payload?.id;
+    const fcmToken = (req.body.fcm_token || req.body.device_token)?.trim() || null;
+    await authService.updateAdminFcmToken(adminId, fcmToken);
+    return successResponse(
+      { fcm_token: fcmToken },
+      "Admin FCM device token updated successfully",
+      res
+    );
+  } catch (error) {
+    logger.error("admin updateFcmToken error:", error);
+    return errorResponse(error, res);
+  }
+};
+
+export { adminLoginHandler, updateFcmTokenHandler };

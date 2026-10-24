@@ -1,0 +1,389 @@
+{
+  "info": {
+    "_postman_id": "inyatri-admin-notifications-2026",
+    "name": "INYATRI - Admin Notifications",
+    "description": "Postman collection for all Admin Notification APIs (Bell Icon Center, FCM Device Token, Mark as Read, and Booking Date Reminders trigger)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Admin Login (Auto-captures {{admin_token}})",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var res = pm.response.json();",
+              "if (res.data && res.data.token) {",
+              "    pm.environment.set('admin_token', res.data.token);",
+              "    pm.collectionVariables.set('admin_token', res.data.token);",
+              "    console.log('Admin token saved successfully');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@inyatri.com\",\n  \"password\": \"Password@123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/auth/admin-login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "auth",
+            "admin-login"
+          ]
+        },
+        "description": "Authenticates admin and saves JWT token to {{admin_token}} collection variable."
+      }
+    },
+    {
+      "name": "1. List Admin Notifications (All)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications?page=1&limit=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "description": "Lists notifications received by admin (e.g., booking confirmations, user account registrations, reminders)."
+      }
+    },
+    {
+      "name": "2. List Admin Notifications (Unread Only)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications?page=1&limit=20&is_read=0",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "is_read",
+              "value": "0",
+              "description": "0 = Unread only, 1 = Read only"
+            }
+          ]
+        },
+        "description": "Filters admin notifications to only unread items."
+      }
+    },
+    {
+      "name": "3. Get Admin Unread Notifications Count (Bell Badge)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications/unread-count",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications",
+            "unread-count"
+          ]
+        },
+        "description": "Lightweight endpoint for polling the admin dashboard bell icon badge count."
+      }
+    },
+    {
+      "name": "4. Mark Single Admin Notification as Read",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications/{{notification_id}}/read",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications",
+            "{{notification_id}}",
+            "read"
+          ]
+        },
+        "description": "Marks a specific notification as read by ID."
+      }
+    },
+    {
+      "name": "5. Mark All Admin Notifications as Read",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications/read-all",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications",
+            "read-all"
+          ]
+        },
+        "description": "Marks all unread notifications for this admin as read at once."
+      }
+    },
+    {
+      "name": "6. Register / Update Admin FCM Device Token (POST)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fcm_token\": \"fcm_device_token_sample_from_admin_web_or_app\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications/fcm-token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications",
+            "fcm-token"
+          ]
+        },
+        "description": "Saves admin device token so this admin receives real-time push notifications on new bookings and user registrations."
+      }
+    },
+    {
+      "name": "7. Update Admin FCM Device Token (PATCH)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"device_token\": \"fcm_device_token_sample_from_admin_web_or_app\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications/fcm-token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications",
+            "fcm-token"
+          ]
+        },
+        "description": "PATCH alias for updating admin FCM token."
+      }
+    },
+    {
+      "name": "8. Trigger Booking Date Reminders (Manual Cron Job Test)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications/trigger-date-reminders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications",
+            "trigger-date-reminders"
+          ]
+        },
+        "description": "Triggers the system service to check for any bookings scheduled for today and dispatches acknowledgment / reminder push notifications."
+      }
+    },
+    {
+      "name": "9. Send Broadcast Push Notification (All Active Users)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Festival Offer 🪔\",\n  \"body\": \"Get flat 20% off on all outstation cab bookings this weekend!\",\n  \"data\": {\n    \"promo_code\": \"FESTIVAL20\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications/send-broadcast",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications",
+            "send-broadcast"
+          ]
+        },
+        "description": "Sends real-time Firebase push notification to all active user device tokens and saves records in in-app bell notification center."
+      }
+    },
+    {
+      "name": "10. Send Direct Push Notification to a Specific User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 1,\n  \"title\": \"Documents Verified 🎉\",\n  \"body\": \"Your driving license and government ID have been verified.\",\n  \"data\": {\n    \"type\": \"document_verified\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/v1/notifications/send-user",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "v1",
+            "notifications",
+            "send-user"
+          ]
+        },
+        "description": "Sends targeted push notification and bell icon notification to a specific user by ID."
+      }
+    }
+  ]
+}

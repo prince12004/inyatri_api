@@ -108,6 +108,14 @@ const schema = {
       "string.empty": "Password cannot be empty",
     }),
   }),
+  updateFcmToken: Joi.object({
+    fcm_token: Joi.string().trim().max(512).optional(),
+    device_token: Joi.string().trim().max(512).optional(),
+  })
+    .or("fcm_token", "device_token")
+    .messages({
+      "object.missing": "Either fcm_token or device_token must be provided",
+    }),
 };
 
 export default schema;
