@@ -72,4 +72,22 @@ router.patch(
 
 router.post("/logout", auth.required, authController.logoutHandler);
 
+router.delete(
+  "/delete-account",
+  auth.required,
+  authController.deleteAccountHandler
+);
+
+router.post(
+  "/delete-account",
+  auth.required,
+  authController.deleteAccountHandler
+);
+
+router.delete(
+  "/profile",
+  auth.required,
+  authController.deleteAccountHandler
+);
+
 export default router;

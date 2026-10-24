@@ -164,6 +164,9 @@ export const formatUnifiedCard = (booking, isCab = false) => {
     booking_status_label: BOOKING_STATUS_LABELS[booking.booking_status] || "unknown",
     payment_status_raw: booking.payment_status,
     payment_status_label: PAYMENT_STATUS_LABELS[booking.payment_status] || "unknown",
+    cancellation_reason: booking.cancellation_reason || null,
+    cancelled_at: booking.cancelled_at || null,
+    cancelled_at_formatted: booking.cancelled_at ? formatBookingDateTime(booking.cancelled_at) : null,
     created_at: booking.created_at,
   };
 };
@@ -452,3 +455,87 @@ export const getUnifiedBookingDetail = async (idOrRef, userId, typeHint = null) 
     },
   };
 };
+
+export const cancelBooking = async (idOrRef, userId, reason = "") => {
+  const refString = String(idOrRef).trim();
+  const numericId = /^\d+$/.test(refString) ? parseInt(refString, 10) : null;
+
+  // Search CabBooking
+  let cabBooking = null;
+  const cabWhere = { user_id: userId };
+  if (numericId) {
+    cabWhere[Op.or] = [{ id: numericId }, { booking_ref: refString }];
+  } else {
+    cabWhere.booking_ref = refString;
+  }
+  cabBooking = await CabBooking.findOne({ where: cabWhere });
+
+  // Search Self-Drive Booking
+  let selfDriveBooking = null;
+  const sdWhere = { user_id: userId };
+  if (numericId) {
+    sdWhere[Op.or] = [{ id: numericId }, { booking_ref: refString }];
+  } else {
+    sdWhere.booking_ref = refString;
+  }
+  selfDriveBooking = await Booking.findOne({ where: sdWhere });
+
+  let target = null;
+  let isCab = false;
+
+  if (cabBooking && selfDriveBooking) {
+    if (cabBooking.booking_ref === refString) {
+      target = cabBooking;
+      isCab = true;
+    } else if (selfDriveBooking.booking_ref === refString) {
+      target = selfDriveBooking;
+      isCab = false;
+    } else {
+      target =
+        new Date(cabBooking.created_at) >= new Date(selfDriveBooking.created_at)
+          ? cabBooking
+          : selfDriveBooking;
+      isCab = target === cabBooking;
+    }
+  } else if (cabBooking) {
+    target = cabBooking;
+    isCab = true;
+  } else if (selfDriveBooking) {
+    target = selfDriveBooking;
+    isCab = false;
+  }
+
+  if (!target) {
+    throw new ApiError(404, "Booking not found");
+  }
+
+  const currentStatus = determineBookingStatus(target, isCab);
+
+  if (
+    Number(target.booking_status) === BOOKING_STATUS.CANCELLED ||
+    currentStatus === "cancelled"
+  ) {
+    throw new ApiError(400, "Booking is already cancelled");
+  }
+
+  if (currentStatus === "completed") {
+    throw new ApiError(400, "Cannot cancel a completed booking");
+  }
+
+  const cancellationReason =
+    reason && typeof reason === "string" && reason.trim()
+      ? reason.trim()
+      : "Cancelled by user";
+
+  target.booking_status = BOOKING_STATUS.CANCELLED;
+  target.cancellation_reason = cancellationReason;
+  target.cancelled_at = new Date();
+  await target.save();
+
+  return await getUnifiedBookingDetail(
+    target.id,
+    userId,
+    isCab ? "cab" : "self_drive"
+  );
+};
+

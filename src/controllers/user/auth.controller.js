@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import { User, sequelize } from "../../models/index.js";
 import {
   assertUserAuthConfig,
@@ -27,7 +28,13 @@ import {
 import logger from "../../utils/logger.js";
 
 const findUserByMobile = async (mobile, options = {}) =>
-  User.findOne({ where: { mobile }, ...options });
+  User.findOne({
+    where: {
+      mobile,
+      status: { [Op.ne]: User.STATUS.DELETED },
+    },
+    ...options,
+  });
 
 const sendOtpHandler = async (req, res) => {
   try {
@@ -128,7 +135,10 @@ const verifyOtpHandler = async (req, res) => {
 
     try {
       user = await User.findOne({
-        where: { mobile },
+        where: {
+          mobile,
+          status: { [Op.ne]: User.STATUS.DELETED },
+        },
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -370,6 +380,39 @@ const logoutHandler = async (req, res) => {
   }
 };
 
+const deleteAccountHandler = async (req, res) => {
+  try {
+    const user = req.user;
+    const rawMobile = user.mobile.split("_del_")[0];
+    const timestamp = Date.now();
+    const softDeletedMobile = `${rawMobile}_del_${timestamp}`;
+
+    await user.update({
+      status: User.STATUS.DELETED,
+      mobile: softDeletedMobile,
+      deleted_at: new Date(),
+      token: null,
+      fcm_token: null,
+    });
+
+    return successResponse(
+      {
+        id: user.id,
+        mobile: rawMobile,
+        status: "deleted",
+        deleted_at: new Date(),
+        message:
+          "Account deleted successfully. You can create a new account using the same phone number anytime.",
+      },
+      "Account deleted successfully",
+      res
+    );
+  } catch (error) {
+    logger.error("deleteAccount error:", error);
+    return errorResponse(error, res);
+  }
+};
+
 export {
   sendOtpHandler,
   verifyOtpHandler,
@@ -379,4 +422,5 @@ export {
   completeProfileHandler as updateProfileHandler,
   updateFcmTokenHandler,
   logoutHandler,
+  deleteAccountHandler,
 };

@@ -20,7 +20,7 @@ const User = sequelize.define(
       defaultValue: "",
     },
     mobile: {
-      type: DataTypes.STRING(15),
+      type: DataTypes.STRING(50),
       allowNull: false,
     },
     country_code: {
@@ -110,11 +110,16 @@ const User = sequelize.define(
       allowNull: false,
       defaultValue: DataTypes.NOW,
     },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+    },
     status: {
       type: DataTypes.TINYINT,
       allowNull: false,
       defaultValue: 1,
-      comment: "1=active",
+      comment: "1=active, 2=inactive, 0=deleted",
     },
   },
   {
@@ -134,7 +139,9 @@ User.USER_TYPES = {
 };
 
 User.STATUS = {
+  DELETED: 0,
   ACTIVE: 1,
+  INACTIVE: 2,
 };
 
 export default User;

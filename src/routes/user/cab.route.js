@@ -2,8 +2,10 @@ import express from "express";
 const router = express.Router();
 
 import * as cabController from "../../controllers/user/cab.controller.js";
+import * as unifiedBookingController from "../../controllers/user/unifiedBooking.controller.js";
 import validate from "../../middlewares/validation.js";
 import schema from "../../middlewares/joiValidation/user/cab.js";
+import unifiedSchema from "../../middlewares/joiValidation/user/unifiedBooking.js";
 import auth from "../../middlewares/userAuth.js";
 
 // ─── Public Routes ─────────────────────────────────────────────────────────
@@ -92,4 +94,15 @@ router.post(
   cabController.syncCabPayment
 );
 
+router.post(
+  "/bookings/:id/cancel",
+  auth.required,
+  validate({
+    params: schema.cabBookingIdParamSchema,
+    body: unifiedSchema.cancelBookingBody,
+  }),
+  unifiedBookingController.cancelBooking
+);
+
 export default router;
+

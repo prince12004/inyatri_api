@@ -23,4 +23,25 @@ router.get(
   unifiedBookingController.getBookingDetail
 );
 
+router.post(
+  "/:id/cancel",
+  auth.required,
+  validate({
+    params: schema.bookingDetailParams,
+    body: schema.cancelBookingBody,
+  }),
+  unifiedBookingController.cancelBooking
+);
+
+router.patch(
+  "/:id/cancel",
+  auth.required,
+  validate({
+    params: schema.bookingDetailParams,
+    body: schema.cancelBookingBody,
+  }),
+  unifiedBookingController.cancelBooking
+);
+
 export default router;
+
