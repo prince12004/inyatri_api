@@ -40,6 +40,7 @@ router.post(
   authController.completeProfileHandler
 );
 
+
 router.patch(
   "/profile",
   auth.required,
