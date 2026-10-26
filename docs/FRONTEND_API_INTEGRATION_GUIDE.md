@@ -234,7 +234,48 @@ Users can update documents at any time either:
 
 ---
 
+### 3.3 Delete Account (Soft Delete API)
+
+Allows the logged-in user to soft-delete their account.
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `DELETE` | `/api/user/v1/auth/delete-account` | User Auth (Bearer) | Soft deletes user account & frees phone number |
+| `POST` | `/api/user/v1/auth/delete-account` | User Auth (Bearer) | Alternate POST method for web clients |
+| `DELETE` | `/api/user/v1/auth/profile` | User Auth (Bearer) | Alternate profile deletion alias |
+
+> 🔑 **Phone Number Reuse Guarantee**:
+> When an account is soft-deleted:
+> 1. The account status is set to `0` (`deleted`), active sessions & FCM tokens are cleared, and `deleted_at` timestamp is set.
+> 2. The phone number is safely suffixed in the background (`<mobile>_del_<timestamp>`), freeing up the exact original phone number.
+> 3. The user (or anyone with that mobile number) can **immediately send OTP and register a brand new, fresh account** with that same phone number.
+> 4. Past bookings, invoices, and payments stay intact linked to the historical record for financial audits.
+
+**Headers**:
+```http
+Authorization: Bearer <USER_JWT_TOKEN>
+```
+
+**Response (200)**:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "Account deleted successfully",
+  "data": {
+    "id": 44,
+    "mobile": "9876543210",
+    "status": "deleted",
+    "deleted_at": "2026-10-24T11:44:00.000Z",
+    "message": "Account deleted successfully. You can create a new account using the same phone number anytime."
+  }
+}
+```
+
+---
+
 ## 4. USER APIS — Unified Bookings Hub (Mobile "Bookings" Tab)
+
 
 Base prefix: `/api/user/v1/bookings`
 
@@ -399,7 +440,79 @@ GET /api/user/v1/bookings?status=upcoming&trip_type=one_way&page=1&limit=20
 
 ---
 
+### 4.4 Cancel Booking API (Unified for Cab & Self-Drive)
+
+Cancels an upcoming booking and stores the user's cancellation reason and cancellation timestamp.
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/user/v1/bookings/:id/cancel` | User Auth (Bearer) | **Recommended**: Cancel any booking (Cab or Self-Drive) by ID or `booking_ref` |
+| `PATCH` | `/api/user/v1/bookings/:id/cancel` | User Auth (Bearer) | Alternate PATCH method |
+| `POST` | `/api/user/v1/self-drive/bookings/:id/cancel` | User Auth (Bearer) | Self-drive sub-route cancel alias |
+| `POST` | `/api/user/v1/cab/bookings/:id/cancel` | User Auth (Bearer) | Cab sub-route cancel alias |
+
+- **URL Parameter `:id`**: Numeric booking ID (e.g. `12`) or alphanumeric booking reference (e.g. `IY-CAB-5521` or `IYS-010423`).
+- **Headers**:
+  ```http
+  Authorization: Bearer <USER_JWT_TOKEN>
+  Content-Type: application/json
+  ```
+- **Request Body (JSON - Optional)**:
+  ```json
+  {
+    "reason": "Travel plans changed due to flight schedule"
+  }
+  ```
+  *(If omitted or blank, defaults to `"Cancelled by user"`).*
+
+**Validation Rules**:
+- Returns `404 Not Found` if booking doesn't exist or does not belong to logged-in user.
+- Returns `400 Bad Request` if booking is already cancelled (`"Booking is already cancelled"`).
+- Returns `400 Bad Request` if trip has already completed (`"Cannot cancel a completed booking"`).
+
+**Success Response (200)**:
+```json
+{
+  "code": 200,
+  "status": true,
+  "message": "Booking cancelled successfully",
+  "data": {
+    "id": 5521,
+    "booking_ref": "IY-CAB-5521",
+    "category": "cab",
+    "category_label": "Cab",
+    "trip_type": "one_way",
+    "trip_type_label": "One Way",
+    "car_name": "Innova Crysta",
+    "car_image": "https://res.cloudinary.com/.../innova.jpg",
+    "status": "cancelled",
+    "status_label": "cancelled",
+    "status_badge_color": "#EF4444",
+    "price": 3880,
+    "formatted_price": "₹3880",
+    "booking_status_raw": 6,
+    "booking_status_label": "cancelled",
+    "cancellation_reason": "Travel plans changed due to flight schedule",
+    "cancelled_at": "2026-10-24T11:44:24.000Z",
+    "cancelled_at_formatted": "Sat, 24 Oct · 5:14 PM",
+    "trip_details": {
+      "pickup_location": "Bengaluru Airport Terminal 1, Bengaluru",
+      "drop_location": "Mysuru Central",
+      "scheduled_at": "2026-06-28T09:00:00.000Z",
+      "scheduled_at_formatted": "Sun, 28 Jun · 9:00 AM"
+    },
+    "fare_breakdown": {
+      "payable_amount": 3880,
+      "total_booking_amount": 3880
+    }
+  }
+}
+```
+
+---
+
 ## 5. USER APIS — Self-Drive Car Rental & Subscription
+
 
 
 Base prefix: `/api/user/v1/self-drive`
@@ -1156,4 +1269,48 @@ Query options: `page`, `limit`, `is_read` (`0` for unread only, `1` for read onl
 3. **User Account Creation**:
    - **To User**: Welcome notification sent + bell icon notification saved.
    - **To Admin**: Notification sent to admin regarding the newly registered customer.
+
+---
+
+### 13.4 Admin Notification Endpoints
+
+Base prefix: `/api/admin/v1/notifications`  
+*All endpoints require `Authorization: Bearer <ADMIN_TOKEN>`.*
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | List admin notifications (`page`, `limit`, `is_read=0\|1`) |
+| `GET` | `/unread-count` | Get admin unread notifications badge count |
+| `PATCH` | `/:id/read` | Mark specific admin notification as read |
+| `PATCH` | `/read-all` | Mark all admin notifications as read |
+| `POST` | `/fcm-token` | Register/update admin FCM device push token |
+| `POST` | `/trigger-date-reminders` | Manually trigger departure-date reminder check |
+| `POST` | `/send-broadcast` | Broadcast push & bell notification to all active users |
+| `POST` | `/send-user` | Send targeted push & bell notification to a specific user |
+
+#### A. Send Broadcast Notification (All Users)
+`POST /api/admin/v1/notifications/send-broadcast`
+```json
+{
+  "title": "Festival Offer 🪔",
+  "body": "Get flat 20% off on all outstation cab bookings this weekend!",
+  "data": {
+    "promo_code": "FESTIVAL20"
+  }
+}
+```
+
+#### B. Send Direct Notification to User
+`POST /api/admin/v1/notifications/send-user`
+```json
+{
+  "user_id": 1,
+  "title": "Documents Verified 🎉",
+  "body": "Your driving license and government ID have been verified.",
+  "data": {
+    "type": "document_verified"
+  }
+}
+```
+
 

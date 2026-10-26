@@ -40,3 +40,24 @@ export const getBookingDetail = async (req, res) => {
     return errorResponse(error, res);
   }
 };
+
+export const cancelBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const cancelled = await unifiedBookingService.cancelBooking(
+      id,
+      req.user.id,
+      reason
+    );
+    return successResponse(
+      cancelled,
+      "Booking cancelled successfully",
+      res
+    );
+  } catch (error) {
+    logger.error("cancelBooking error:", error);
+    return errorResponse(error, res);
+  }
+};
+

@@ -288,6 +288,25 @@ const collection = {
             },
           },
         },
+        {
+          name: "Delete Account (Soft Delete & Allow Re-registration)",
+          request: {
+            method: "DELETE",
+            header: [
+              {
+                key: "Authorization",
+                value: "Bearer {{user_token}}",
+              },
+            ],
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/auth/delete-account",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "auth", "delete-account"],
+            },
+            description:
+              "Soft deletes the user account, clears session tokens, and releases the exact same phone number so the user can immediately register a brand new fresh account anytime.",
+          },
+        },
       ],
     },
 
@@ -519,6 +538,36 @@ const collection = {
             },
             description:
               "Auto-resolves by booking_ref string directly (e.g. IY-CAB-5521 or IYS-00001).",
+          },
+        },
+        {
+          name: "Cancel Booking (with Reason)",
+          request: {
+            method: "POST",
+            header: [
+              { key: "Content-Type", value: "application/json" },
+              {
+                key: "Authorization",
+                value: "Bearer {{user_token}}",
+              },
+            ],
+            body: {
+              mode: "raw",
+              raw: JSON.stringify(
+                {
+                  reason: "Meeting rescheduled, will book for next week",
+                },
+                null,
+                2
+              ),
+            },
+            url: {
+              raw: "{{baseUrl}}/api/user/v1/bookings/{{booking_id}}/cancel",
+              host: ["{{baseUrl}}"],
+              path: ["api", "user", "v1", "bookings", "{{booking_id}}", "cancel"],
+            },
+            description:
+              "Cancels an active booking by ID or reference, stores cancellation reason and timestamp, and returns the updated cancelled card.",
           },
         },
       ],

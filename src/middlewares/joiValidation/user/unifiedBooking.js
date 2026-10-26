@@ -29,6 +29,10 @@ const schema = {
     type: Joi.string().valid("cab", "self_drive").optional(),
     category: Joi.string().valid("cab", "self_drive").optional(),
   }),
+
+  cancelBookingBody: Joi.object({
+    reason: Joi.string().trim().max(500).optional().allow("", null),
+  }),
 };
 
 export default schema;

@@ -163,6 +163,16 @@ const Booking = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: true,
     },
+    cancellation_reason: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      defaultValue: null,
+    },
+    cancelled_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+    },
   },
   {
     tableName: "bookings",

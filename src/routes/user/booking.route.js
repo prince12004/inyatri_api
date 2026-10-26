@@ -2,8 +2,10 @@ import express from "express";
 const router = express.Router();
 
 import * as bookingController from "../../controllers/user/booking.controller.js";
+import * as unifiedBookingController from "../../controllers/user/unifiedBooking.controller.js";
 import validate from "../../middlewares/validation.js";
 import schema from "../../middlewares/joiValidation/user/booking.js";
+import unifiedSchema from "../../middlewares/joiValidation/user/unifiedBooking.js";
 import auth from "../../middlewares/userAuth.js";
 
 router.post(
@@ -51,4 +53,15 @@ router.post(
   bookingController.syncBookingPayment
 );
 
+router.post(
+  "/:id/cancel",
+  auth.required,
+  validate({
+    params: schema.bookingIdParamSchema,
+    body: unifiedSchema.cancelBookingBody,
+  }),
+  unifiedBookingController.cancelBooking
+);
+
 export default router;
+
